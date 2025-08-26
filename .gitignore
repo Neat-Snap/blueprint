@@ -28,3 +28,5 @@ frontend/.env*
 
 frontend/*.tsbuildinfo
 frontend/next-env.d.ts
+
+rules.md
