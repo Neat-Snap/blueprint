@@ -2,12 +2,16 @@ package api
 
 import (
 	"github.com/Neat-Snap/blueprint-backend/api/handlers"
+	"github.com/Neat-Snap/blueprint-backend/logger"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"gorm.io/gorm"
 )
 
 type RouterConfig struct {
-	Env string
+	Env    string
+	DB     *gorm.DB
+	Logger logger.MultiLogger
 }
 
 func NewRouter(c RouterConfig) chi.Router {
@@ -18,6 +22,9 @@ func NewRouter(c RouterConfig) chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RealIP)
 
-	r.Get("/health", handlers.HealthHandler)
+	// setting up health route (with struct and complexity to showcase the approach)
+	api := handlers.NewTestHealthAPI(c.DB, c.Logger)
+	r.Get("/health", api.HealthHandler)
+
 	return r
 }

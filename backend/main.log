@@ -1,0 +1,13 @@
+{"level":"info","db_name":"statgrad","time":"2025-08-26T17:21:25+03:00","message":"successfully connected to database"}
+{"level":"info","addr":":8080","env":"dev","time":"2025-08-26T17:21:25+03:00","message":"starting http server"}
+{"level":"info","time":"2025-08-26T17:21:41+03:00","message":"health check"}
+{"level":"info","signal":2,"time":"2025-08-26T17:21:54+03:00","message":"received signal"}
+{"level":"info","time":"2025-08-26T17:21:54+03:00","message":"stopping server"}
+{"level":"info","db_name":"statgrad","time":"2025-08-26T17:29:51+03:00","message":"successfully connected to database"}
+{"level":"info","addr":":8080","env":"dev","time":"2025-08-26T17:29:51+03:00","message":"starting http server"}
+{"level":"info","time":"2025-08-26T17:29:56+03:00","message":"health check"}
+{"level":"info","db_name":"statgrad","time":"2025-08-26T17:30:24+03:00","caller":"/Users/spikk/Code/statgrad/backend/logger/log.go:38","message":"successfully connected to database"}
+{"level":"info","addr":":8080","env":"dev","time":"2025-08-26T17:30:24+03:00","caller":"/Users/spikk/Code/statgrad/backend/logger/log.go:38","message":"starting http server"}
+{"level":"info","time":"2025-08-26T17:30:26+03:00","caller":"/Users/spikk/Code/statgrad/backend/logger/log.go:38","message":"health check"}
+{"level":"info","db_name":"statgrad","time":"2025-08-26T17:30:48+03:00","caller":"/Users/spikk/Code/statgrad/backend/logger/log.go:38","message":"successfully connected to database"}
+{"level":"info","addr":":8080","env":"dev","time":"2025-08-26T17:30:48+03:00","caller":"/Users/spikk/Code/statgrad/backend/logger/log.go:38","message":"starting http server"}

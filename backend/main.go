@@ -10,15 +10,28 @@ import (
 
 	"github.com/Neat-Snap/blueprint-backend/api"
 	"github.com/Neat-Snap/blueprint-backend/config"
+	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
 )
 
 func main() {
 	cfg := config.Load()
-	log := logger.New(cfg.Env)
+	log, err := logger.New("main.log")
+	if err != nil {
+		log.Error("failed to create logger", "error", err)
+		os.Exit(1)
+	}
+
+	dbConn, err := db.Connect(&cfg, log)
+	if err != nil {
+		log.Error("failed to connect to the database", "error", err)
+		os.Exit(1)
+	}
 
 	router := api.NewRouter(api.RouterConfig{
-		Env: cfg.Env,
+		Env:    cfg.Env,
+		DB:     dbConn,
+		Logger: *log,
 	})
 
 	server := api.NewServer(cfg, log, router)

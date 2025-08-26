@@ -3,21 +3,21 @@ package api
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/Neat-Snap/blueprint-backend/config"
+	"github.com/Neat-Snap/blueprint-backend/logger"
 )
 
 type Server struct {
 	cfg    config.Config
-	log    *slog.Logger
+	log    *logger.MultiLogger
 	serv   *http.Server
 	router http.Handler
 }
 
-func NewServer(cfg config.Config, log *slog.Logger, router http.Handler) *Server {
+func NewServer(cfg config.Config, log *logger.MultiLogger, router http.Handler) *Server {
 	s := &Server{
 		cfg:    cfg,
 		log:    log,
