@@ -35,3 +35,5 @@ rules.md
 
 *.log
 *.air.toml
+
+backend/tmp*

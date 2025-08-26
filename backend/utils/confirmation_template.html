@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title>{{APP_NAME}} – Your confirmation code</title>
+  <!--[if mso]>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  <![endif]-->
+  <style>
+    /* Some clients respect embedded CSS; critical styles are also inlined */
+    @media (prefers-color-scheme: dark) {
+      .bg { background-color: #0b0c0f !important; }
+      .card { background-color: #111418 !important; border-color: #1f2430 !important; }
+      .text { color: #e6e9ef !important; }
+      .muted { color: #a8b0bd !important; }
+      .brand { color: #8bb3ff !important; }
+      .code { background:#0f1320 !important; color:#e6e9ef !important; border-color:#24304a !important; }
+      .btn { background:#377dff !important; border-color:#377dff !important; color:#ffffff !important; }
+    }
+    @media only screen and (max-width: 600px) {
+      .container { width: 100% !important; }
+      .spacer { height: 24px !important; }
+      .code { font-size: 28px !important; letter-spacing: 6px !important; }
+    }
+  </style>
+</head>
+<body class="bg" style="margin:0; padding:0; background:#f4f6fb;">
+  <!-- Preheader: shows in inbox preview, hidden in body -->
+  <div style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden;">
+    Your {{APP_NAME}} confirmation code is {{CODE}}. It expires in {{EXPIRES_MIN}} minutes.
+  </div>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f4f6fb;" class="bg">
+    <tr>
+      <td align="center" style="padding: 32px 16px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="600" class="container" style="width:600px; max-width:600px;">
+          <tr>
+            <td style="padding: 0 0 16px 0;" align="center">
+              <!-- Optional logo: replace src or remove block -->
+              <!-- <img src="{{LOGO_URL}}" width="48" height="48" alt="{{APP_NAME}} logo" style="display:block; border:0;"> -->
+              <div class="brand" style="font:600 16px/1.2 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial; color:#3b82f6;">
+                {{APP_NAME}}
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="card" style="background:#ffffff; border:1px solid #e6e8ee; border-radius:12px; overflow:hidden;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding: 28px 28px 0 28px;">
+                    <h1 class="text" style="margin:0 0 8px 0; font:700 22px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial; color:#0f172a;">
+                      Confirm your sign-in
+                    </h1>
+                    <p class="text" style="margin:0; font:400 15px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial; color:#1f2937;">
+                      Use this code to continue signing in to <strong>{{APP_NAME}}</strong>. If you didn’t request it, you can safely ignore this email.
+                    </p>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding: 24px 28px 0 28px;" align="center">
+                    <!-- Big code block -->
+                    <div class="code" style="display:inline-block; font:700 32px/1.1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; letter-spacing:10px; padding:16px 20px; border:1px solid #e6e8ee; border-radius:10px; background:#f8fafc; color:#0f172a;">
+                      {{CODE}}
+                    </div>
+                    <div class="muted" style="margin-top:10px; font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial; color:#64748b;">
+                      Expires in {{EXPIRES_MIN}} minutes.
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Optional CTA button that deep-links your app/site -->
+                <tr>
+                  <td style="padding: 24px 28px 0 28px;" align="center">
+                    <!--[if mso]>
+                      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+                        href="{{ACTION_URL}}" style="height:44px;v-text-anchor:middle;width:260px;" arcsize="10%"
+                        stroke="f" fillcolor="#2563eb">
+                        <w:anchorlock/>
+                        <center style="color:#ffffff;font-family:Segoe UI, Arial,sans-serif;font-size:15px;font-weight:600;">
+                          Continue with {{APP_NAME}}
+                        </center>
+                      </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-- -->
+                    <a class="btn" href="{{ACTION_URL}}"
+                      style="display:inline-block; text-decoration:none; background:#2563eb; border:1px solid #2563eb; color:#ffffff; font:600 15px/44px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial; padding:0 22px; border-radius:8px; min-width:240px; text-align:center;">
+                      Continue with {{APP_NAME}}
+                    </a>
+                    <!--<![endif]-->
+                    <div class="muted" style="margin-top:10px; font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial; color:#6b7280;">
+                      If the button doesn’t work, copy and paste this link into your browser:<br>
+                      <span style="word-break:break-all; color:#374151;"><a href="{{ACTION_URL}}" style="color:#374151; text-decoration:underline;">{{ACTION_URL}}</a></span>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding: 24px 28px 28px 28px;">
+                    <p class="muted" style="margin:0; font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial; color:#6b7280;">
+                      Didn’t attempt to sign in? <a href="mailto:{{SUPPORT_EMAIL}}" style="color:#2563eb; text-decoration:underline;">Contact support</a>.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding: 16px 8px 0 8px;">
+              <p class="muted" style="margin:0; font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial; color:#94a3b8;">
+                © {{CURRENT_YEAR}} {{APP_NAME}} • This is a transactional email.
+              </p>
+              <p class="muted" style="margin:6px 0 0 0; font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial; color:#94a3b8;">
+                Sent to you because a sign-in was requested from this email address.
+              </p>
+            </td>
+          </tr>
+
+          <tr><td class="spacer" style="height: 32px;">&nbsp;</td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

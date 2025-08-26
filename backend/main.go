@@ -28,10 +28,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	connectionObject := db.NewConnection(dbConn)
+
 	router := api.NewRouter(api.RouterConfig{
-		Env:    cfg.Env,
-		DB:     dbConn,
-		Logger: *log,
+		Env:        cfg.Env,
+		DB:         dbConn,
+		Logger:     *log,
+		Connection: connectionObject,
 	})
 
 	server := api.NewServer(cfg, log, router)

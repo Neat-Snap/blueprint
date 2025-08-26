@@ -29,7 +29,6 @@ func (r *authRepo) LinkIdentity(ctx context.Context, userID uint, provider, subj
 }
 
 func (r *authRepo) EnsurePasswordCredential(ctx context.Context, userID uint, hashed string) error {
-	// Upsert: create or update hash
 	pc := PasswordCredential{UserID: userID, PasswordHash: hashed}
 	return r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{

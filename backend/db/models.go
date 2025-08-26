@@ -15,7 +15,7 @@ type User struct {
 	Email           *string `gorm:"uniqueIndex:uniq_users_email,where:deleted_at IS NULL"`
 	EmailVerifiedAt *time.Time
 
-	Name      string
+	Name      *string
 	AvatarURL *string
 
 	PasswordCredential *PasswordCredential `gorm:"constraint:OnDelete:CASCADE"`
