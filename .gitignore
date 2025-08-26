@@ -32,3 +32,6 @@ frontend/next-env.d.ts
 rules.md
 
 .env
+
+*.log
+*.air.toml
