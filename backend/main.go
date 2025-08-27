@@ -12,6 +12,7 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/config"
 	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
+	"github.com/Neat-Snap/blueprint-backend/utils/email"
 )
 
 func main() {
@@ -30,11 +31,15 @@ func main() {
 
 	connectionObject := db.NewConnection(dbConn)
 
+	emailClient := email.NewEmailClient(cfg, *log)
+
 	router := api.NewRouter(api.RouterConfig{
-		Env:        cfg.Env,
-		DB:         dbConn,
-		Logger:     *log,
-		Connection: connectionObject,
+		Env:         cfg.Env,
+		DB:          dbConn,
+		Logger:      *log,
+		Connection:  connectionObject,
+		EmailClient: emailClient,
+		RedisSecret: cfg.REDIS_SECRET,
 	})
 
 	server := api.NewServer(cfg, log, router)

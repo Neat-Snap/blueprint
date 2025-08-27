@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -22,6 +23,18 @@ type Config struct {
 	DBPass string
 	DBHost string
 	DBPort string
+
+	RESEND_API_KEY string
+	REDIS_HOST     string
+	REDIS_PORT     string
+	REDIS_PASS     string
+	REDIS_DB       int
+	REDIS_SECRET   string
+
+	APP_NAME string
+	APP_URL  string
+
+	SUPPORT_EMAIL string
 }
 
 func getenv(k, def string) string {
@@ -84,5 +97,18 @@ func Load() Config {
 		DBPass: getenvStrict("DB_PASS"),
 		DBHost: getenvStrict("DB_HOST"),
 		DBPort: getenv("DB_PORT", "5432"),
+
+		RESEND_API_KEY: getenvStrict("RESEND_API_KEY"),
+
+		REDIS_HOST:   getenv("REDIS_HOST", "localhost"),
+		REDIS_PORT:   getenv("REDIS_PORT", "6379"),
+		REDIS_PASS:   getenv("REDIS_PASS", ""),
+		REDIS_DB:     getint("REDIS_DB", 0),
+		REDIS_SECRET: getenvStrict("REDIS_SECRET"),
+
+		APP_NAME: getenvStrict("APP_NAME"),
+		APP_URL:  getenvStrict("APP_URL"),
+
+		SUPPORT_EMAIL: fmt.Sprintf("support@%s", getenvStrict("APP_URL")),
 	}
 }

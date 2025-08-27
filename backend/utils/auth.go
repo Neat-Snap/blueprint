@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Neat-Snap/blueprint-backend/db"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/argon2"
 	"gorm.io/gorm"
@@ -139,4 +141,17 @@ func SignUpEmailPassword(ctx context.Context, store *db.Connection, email, passw
 		return nil
 	})
 	return out, err
+}
+
+func GenerateJWT(secret []byte, email string) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"email": email,
+		"exp":   time.Now().Add(time.Hour * 24 * 7).Unix(),
+	})
+
+	tokenString, err := token.SignedString(secret)
+	if err != nil {
+		return "", err
+	}
+	return tokenString, nil
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/api/handlers"
 	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
+	"github.com/Neat-Snap/blueprint-backend/utils/email"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
@@ -13,10 +14,12 @@ import (
 )
 
 type RouterConfig struct {
-	Env        string
-	DB         *gorm.DB
-	Logger     logger.MultiLogger
-	Connection *db.Connection
+	Env         string
+	DB          *gorm.DB
+	Logger      logger.MultiLogger
+	Connection  *db.Connection
+	EmailClient *email.EmailClient
+	RedisSecret string
 }
 
 func NewRouter(c RouterConfig) chi.Router {
@@ -36,9 +39,10 @@ func NewRouter(c RouterConfig) chi.Router {
 	api := handlers.NewTestHealthAPI(c.DB, c.Logger)
 	r.Get("/health", api.HealthHandler)
 
-	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection)
+	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret)
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", authAPI.RegisterEndpoint)
+		r.Post("/confirm-email", authAPI.ConfirmEmailEndpoint)
 	})
 
 	return r
