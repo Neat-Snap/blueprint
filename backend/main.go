@@ -40,6 +40,7 @@ func main() {
 		Connection:  connectionObject,
 		EmailClient: emailClient,
 		RedisSecret: cfg.REDIS_SECRET,
+		Config:      cfg,
 	})
 
 	server := api.NewServer(cfg, log, router)

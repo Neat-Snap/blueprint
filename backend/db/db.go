@@ -25,6 +25,11 @@ func Connect(cfg *config.Config, logger *logger.MultiLogger) (*gorm.DB, error) {
 		return nil, err
 	}
 
+	if err := db.AutoMigrate(&User{}, &PasswordCredential{}, &AuthIdentity{}, &WorkSpace{}, &UserWorkspace{}); err != nil {
+		logger.Error("failed to auto migrate", "error", err)
+		return nil, err
+	}
+
 	logger.Info("successfully connected to database", "db_name", cfg.DBName)
 
 	return db, nil

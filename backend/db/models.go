@@ -25,8 +25,11 @@ type User struct {
 }
 
 type PasswordCredential struct {
-	ID                uint      `gorm:"primaryKey"`
-	UserID            uint      `gorm:"uniqueIndex"`
+	ID uint `gorm:"primaryKey"`
+
+	UserID uint  `gorm:"uniqueIndex;not null"`
+	User   *User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+
 	PasswordHash      string    `gorm:"type:text;not null" json:"-"`
 	PasswordUpdatedAt time.Time `gorm:"autoUpdateTime"`
 	PasswordDisabled  bool      `gorm:"default:false"`
@@ -37,7 +40,9 @@ type AuthIdentity struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	UserID   uint   `gorm:"index;not null"`
+	UserID uint  `gorm:"index;not null"`
+	User   *User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+
 	Provider string `gorm:"type:varchar(32);not null;index:uniq_provider_subject,unique"`
 	Subject  string `gorm:"type:varchar(191);not null;index:uniq_provider_subject,unique"`
 

@@ -79,6 +79,7 @@ func tokenResponse(w http.ResponseWriter, token string, logger logger.MultiLogge
 
 func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connection, emailClient *email.EmailClient, redisSecret string, environment string, sessionSecret string, config config.Config) *AuthAPI {
 	gob.Register(SessionUser{})
+	logger.Debug("app url from config is", "app_url", config.APP_URL)
 	cookieStore := sessions.NewCookieStore([]byte(sessionSecret))
 	cookieStore.Options = &sessions.Options{
 		Path:     "/",
@@ -98,7 +99,7 @@ func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connectio
 		),
 	)
 
-	return &AuthAPI{DB: db, logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret}
+	return &AuthAPI{DB: db, logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret, CookieStore: cookieStore}
 }
 
 // POST /auth/register
@@ -204,7 +205,7 @@ func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
 	tokenResponse(w, tokenOnSuccess, a.logger)
 }
 
-// POST /auth/{provider}
+// GET /auth/{provider}
 func (a *AuthAPI) ProviderBeginAuthEndpoint(w http.ResponseWriter, r *http.Request) {
 	gothic.BeginAuthHandler(w, r)
 }
@@ -213,6 +214,7 @@ func (a *AuthAPI) ProviderBeginAuthEndpoint(w http.ResponseWriter, r *http.Reque
 func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Request) {
 	u, err := gothic.CompleteUserAuth(w, r)
 	if err != nil {
+		a.logger.Error("failed to complete auth", "error", err)
 		http.Error(w, "auth failed: "+err.Error(), http.StatusUnauthorized)
 		return
 	}
@@ -249,6 +251,7 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 	var signedInUser *db.User
 	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
 		if ai, err := tx.Auth.FindAuthIdentity(r.Context(), provider, subject); err == nil {
+			a.logger.Debug("found auth identity", "provider", provider, "subject", subject)
 			signedUser, err := tx.Auth.FindUserByAuthIdentity(r.Context(), ai)
 			if err != nil {
 				return err
@@ -256,12 +259,14 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 			signedInUser = signedUser
 			return nil
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			a.logger.Error("failed to find auth identity", "error", err)
 			return err
 		}
 
 		// todo add a check for users who already have a valid cookie
 
-		if curr, err := tx.Users.ByEmail(r.Context(), email); err != nil {
+		if curr, err := tx.Users.ByEmail(r.Context(), email); err == nil {
+			// User with this email already exists, link the new auth identity to them.
 			if err := tx.Auth.LinkIdentity(r.Context(), curr.ID, provider, subject, &email); err != nil {
 				if utils.IsUniqueViolation(err, "uniq_provider_subject") {
 					ai, err2 := tx.Auth.FindAuthIdentity(r.Context(), provider, subject)

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/Neat-Snap/blueprint-backend/api/handlers"
@@ -46,6 +47,12 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.Post("/register", authAPI.RegisterEndpoint)
 		r.Post("/confirm-email", authAPI.ConfirmEmailEndpoint)
 		r.Post("/login", authAPI.LoginEndpoint)
+		r.Get("/{provider}", authAPI.ProviderBeginAuthEndpoint)
+		r.Get("/{provider}/callback", authAPI.ProviderCallbackEndpoint)
+		// temp
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`<a href="/auth/google">Sign in with Google</a>`))
+		})
 	})
 
 	return r
