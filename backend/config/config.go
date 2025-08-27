@@ -30,11 +30,14 @@ type Config struct {
 	REDIS_PASS     string
 	REDIS_DB       int
 	REDIS_SECRET   string
+	SESSION_SECRET string
 
 	APP_NAME string
 	APP_URL  string
 
-	SUPPORT_EMAIL string
+	GOOGLE_CLIENT_ID     string
+	GOOGLE_CLIENT_SECRET string
+	SUPPORT_EMAIL        string
 }
 
 func getenv(k, def string) string {
@@ -100,15 +103,18 @@ func Load() Config {
 
 		RESEND_API_KEY: getenvStrict("RESEND_API_KEY"),
 
-		REDIS_HOST:   getenv("REDIS_HOST", "localhost"),
-		REDIS_PORT:   getenv("REDIS_PORT", "6379"),
-		REDIS_PASS:   getenv("REDIS_PASS", ""),
-		REDIS_DB:     getint("REDIS_DB", 0),
-		REDIS_SECRET: getenvStrict("REDIS_SECRET"),
+		REDIS_HOST:     getenv("REDIS_HOST", "localhost"),
+		REDIS_PORT:     getenv("REDIS_PORT", "6379"),
+		REDIS_PASS:     getenv("REDIS_PASS", ""),
+		REDIS_DB:       getint("REDIS_DB", 0),
+		REDIS_SECRET:   getenvStrict("REDIS_SECRET"),
+		SESSION_SECRET: getenvStrict("SESSION_SECRET"),
 
 		APP_NAME: getenvStrict("APP_NAME"),
 		APP_URL:  getenvStrict("APP_URL"),
 
-		SUPPORT_EMAIL: fmt.Sprintf("support@%s", getenvStrict("APP_URL")),
+		GOOGLE_CLIENT_ID:     getenvStrict("GOOGLE_CLIENT_ID"),
+		GOOGLE_CLIENT_SECRET: getenvStrict("GOOGLE_CLIENT_SECRET"),
+		SUPPORT_EMAIL:        fmt.Sprintf("support@%s", getenvStrict("APP_URL")),
 	}
 }

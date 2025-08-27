@@ -18,6 +18,16 @@ func (r *authRepo) FindAuthIdentity(ctx context.Context, provider, subject strin
 	return &ai, err
 }
 
+func (r *authRepo) FindUserByAuthIdentity(ctx context.Context, ai *AuthIdentity) (*User, error) {
+	userID := ai.UserID
+	var u User
+	err := r.db.WithContext(ctx).
+		Preload("PasswordCredential").
+		Preload("AuthIdentities").
+		First(&u, userID).Error
+	return &u, err
+}
+
 func (r *authRepo) LinkIdentity(ctx context.Context, userID uint, provider, subject string, providerEmail *string) error {
 	ai := AuthIdentity{
 		UserID: userID, Provider: provider, Subject: subject, ProviderEmail: providerEmail,

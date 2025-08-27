@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/Neat-Snap/blueprint-backend/api/handlers"
+	"github.com/Neat-Snap/blueprint-backend/config"
 	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
 	"github.com/Neat-Snap/blueprint-backend/utils/email"
@@ -20,6 +21,7 @@ type RouterConfig struct {
 	Connection  *db.Connection
 	EmailClient *email.EmailClient
 	RedisSecret string
+	Config      config.Config
 }
 
 func NewRouter(c RouterConfig) chi.Router {
@@ -39,10 +41,11 @@ func NewRouter(c RouterConfig) chi.Router {
 	api := handlers.NewTestHealthAPI(c.DB, c.Logger)
 	r.Get("/health", api.HealthHandler)
 
-	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret)
+	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Env, c.Config.SESSION_SECRET, c.Config)
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", authAPI.RegisterEndpoint)
 		r.Post("/confirm-email", authAPI.ConfirmEmailEndpoint)
+		r.Post("/login", authAPI.LoginEndpoint)
 	})
 
 	return r

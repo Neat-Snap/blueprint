@@ -40,3 +40,12 @@ func WriteError(w http.ResponseWriter, logger logger.MultiLogger, err error, mes
 		logger.Error("failed to encode response", "error", err)
 	}
 }
+
+func PickNonEmpty(ss ...string) string {
+	for _, s := range ss {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
+}
