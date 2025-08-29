@@ -35,6 +35,7 @@ func DefaultSkipper(r *http.Request) bool {
 
 		strings.HasPrefix(path, "/auth/google"),
 		strings.HasPrefix(path, "/auth/github"),
+		strings.HasPrefix(path, "/auth/resend-email"),
 		strings.HasPrefix(path, "/auth/azuread"):
 		return true
 	}

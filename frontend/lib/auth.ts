@@ -32,3 +32,8 @@ export async function logout() {
     // ignore
   }
 }
+
+export async function resendEmail(email: string): Promise<SignupResponse> {
+  const { data } = await api.post<SignupResponse>("/auth/resend-email", { email });
+  return data;
+}

@@ -21,11 +21,12 @@ type Redis struct {
 }
 
 var (
-	ErrNotFound = errors.New("code not found")
-	ErrExpired  = errors.New("code expired")
-	ErrConsumed = errors.New("code already used")
-	ErrTooMany  = errors.New("too many attempts")
-	ErrMismatch = errors.New("invalid code")
+	ErrNotFound     = errors.New("code not found")
+	ErrExpired      = errors.New("code expired")
+	ErrConsumed     = errors.New("code already used")
+	ErrTooMany      = errors.New("too many attempts")
+	ErrMismatch     = errors.New("invalid code")
+	ErrLimitReached = errors.New("too many attempts, try again later")
 )
 
 func randomDigits(n int) (string, error) {
@@ -46,6 +47,25 @@ func codeMAC(secret []byte, id, code string) []byte {
 	m.Write([]byte(":"))
 	m.Write([]byte(code))
 	return m.Sum(nil)
+}
+
+func (rc *Redis) resendKey(purpose, email string) string {
+	return rc.Key(purpose+"_resend", strings.ToLower(strings.TrimSpace(email)))
+}
+
+func (rc *Redis) IncrementResend(ctx context.Context, purpose, email string, window time.Duration) (count int64, ttl time.Duration, err error) {
+	key := rc.resendKey(purpose, email)
+
+	pipe := rc.R.TxPipeline()
+	incr := pipe.Incr(ctx, key)
+	pipe.ExpireNX(ctx, key, window)
+	if _, err = pipe.Exec(ctx); err != nil {
+		return 0, 0, err
+	}
+
+	count = incr.Val()
+	ttl, _ = rc.R.TTL(ctx, key).Result()
+	return count, ttl, nil
 }
 
 func (rc *Redis) Create(ctx context.Context, secret []byte, purpose, email string, codeLen int, ttl time.Duration, maxAttempts int) (id, code string, err error) {

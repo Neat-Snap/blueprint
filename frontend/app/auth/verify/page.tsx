@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import Link from "next/link";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function VerifyEmailPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState<number>(60);
 
   const confirmation_id = params.get("cid") || "";
   const email = params.get("email") || "";
@@ -35,6 +37,21 @@ export default function VerifyEmailPage() {
     })();
     return () => { cancelled = true };
   }, [router]);
+
+  // Start a 60s countdown before showing the resend link
+  useEffect(() => {
+    setResendCountdown(60);
+    const interval = setInterval(() => {
+      setResendCountdown((s) => {
+        if (s <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -79,6 +96,18 @@ export default function VerifyEmailPage() {
             <Button type="submit" className="w-full" disabled={loading || !confirmation_id}>
               {loading ? "Verifying..." : "Verify"}
             </Button>
+            <div className="text-center text-sm text-muted-foreground">
+              Didn’t receive the code? {" "}
+              {resendCountdown > 0 ? (
+                <span>
+                  You can resend in {Math.floor(resendCountdown / 60)}:{String(resendCountdown % 60).padStart(2, "0")}
+                </span>
+              ) : (
+                <Link className="text-primary hover:underline" href={`/auth/resend?email=${encodeURIComponent(email)}`}>
+                  Resend email
+                </Link>
+              )}
+            </div>
           </form>
         </CardContent>
       </Card>

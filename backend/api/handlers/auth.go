@@ -444,3 +444,46 @@ func (a *AuthAPI) LogoutEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+// POST /auth/resend-email
+func (a *AuthAPI) ResendEmailEndpoint(w http.ResponseWriter, r *http.Request) {
+	var requestStruct struct {
+		Email string `json:"email"`
+	}
+
+	err := utils.ReadJSON(r.Body, w, a.logger, &requestStruct)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	mail := requestStruct.Email
+
+	count, ttl, err := a.EmailClient.R.IncrementResend(r.Context(), email.VerifyPurpose, mail, 24*time.Hour)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	if count > 3 {
+		utils.WriteError(
+			w,
+			a.logger,
+			email.ErrLimitReached,
+			fmt.Sprintf("limit reached. Try again in %d seconds", int(ttl.Seconds())),
+			http.StatusTooManyRequests,
+		)
+		return
+	}
+	id, err := a.EmailClient.SendConfirmationEmail(mail, "Confirm your email", 60)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "error sending confirmation email", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(SignUpWithConfirmationIDResponse{Message: "User registered successfully", Success: true, ConfirmationID: id}); err != nil {
+		a.logger.Warn("failed to encode response", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}

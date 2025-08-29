@@ -55,6 +55,7 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.Get("/{provider}/callback", authAPI.ProviderCallbackEndpoint)
 		r.With(mw.Confirmation(c.Config, c.EmailClient.R)).Get("/me", authAPI.MeEndpoint)
 		r.Get("/logout", authAPI.LogoutEndpoint)
+		r.Post("/resend-email", authAPI.ResendEmailEndpoint)
 	})
 
 	return r
