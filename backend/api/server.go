@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/Neat-Snap/blueprint-backend/config"
@@ -34,9 +36,15 @@ func NewServer(cfg config.Config, log *logger.MultiLogger, router http.Handler) 
 }
 
 func (s *Server) Start() error {
-	s.log.Info("starting http server", "addr", s.cfg.Addr, "env", s.cfg.Env)
-	err := s.serv.ListenAndServe()
-	return err
+	addr := s.cfg.Addr
+	if strings.HasPrefix(addr, "http") {
+		if u, err := url.Parse(addr); err == nil && u.Host != "" {
+			addr = u.Host
+		}
+	}
+	s.serv.Addr = addr
+	s.log.Info("starting http server", "addr", addr, "env", s.cfg.Env)
+	return s.serv.ListenAndServe()
 }
 
 func (s *Server) Stop(ctx context.Context) error {

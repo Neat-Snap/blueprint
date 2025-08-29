@@ -68,18 +68,80 @@ type SessionUser struct {
 
 // -----------------------------------
 
-func tokenResponse(w http.ResponseWriter, token string, logger logger.MultiLogger) {
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(TokenResponse{Token: token, Success: true}); err != nil {
-		logger.Warn("failed to encode response", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+// GET /auth/me
+func (a *AuthAPI) MeEndpoint(w http.ResponseWriter, r *http.Request) {
+	// Read token from HttpOnly cookie
+	c, err := r.Cookie("token")
+	if err != nil || c == nil || c.Value == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	email, err := utils.DecodeJWT([]byte(a.RedisSecret), c.Value)
+	if err != nil {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	u, err := a.Connection.Users.ByEmail(r.Context(), email)
+	if err != nil {
+		http.Error(w, "user not found", http.StatusUnauthorized)
+		return
+	}
+
+	resp := map[string]any{
+		"id":    u.ID,
+		"email": u.Email,
+		"name":  u.Name,
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(resp)
 }
+
+func returnCookieToken(origin string, w http.ResponseWriter, token string, cfg config.Config) {
+	w.Header().Set("Access-Control-Allow-Origin", origin)
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+	secure := cfg.Env == "prod"
+	sameSite := http.SameSiteLaxMode
+	if secure {
+		sameSite = http.SameSiteNoneMode
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: sameSite,
+		MaxAge:   3600 * 24 * 21,
+	})
+}
+
+func returnDefaultPositiveResponse(w http.ResponseWriter, log logger.MultiLogger) {
+	var r utils.DefaultResponse
+	w.WriteHeader(http.StatusOK)
+	err := json.NewEncoder(w).Encode(r)
+	if err != nil {
+		utils.WriteError(w, log, err, "output error occured", http.StatusInternalServerError)
+	}
+
+}
+
+// func tokenResponse(w http.ResponseWriter, token string, logger logger.MultiLogger) {
+// 	w.WriteHeader(http.StatusOK)
+// 	if err := json.NewEncoder(w).Encode(TokenResponse{Token: token, Success: true}); err != nil {
+// 		logger.Warn("failed to encode response", "error", err)
+// 		w.WriteHeader(http.StatusInternalServerError)
+// 		return
+// 	}
+// }
 
 func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connection, emailClient *email.EmailClient, redisSecret string, environment string, sessionSecret string, config config.Config) *AuthAPI {
 	gob.Register(SessionUser{})
-	logger.Debug("app url from config is", "app_url", config.APP_URL)
+	logger.Debug("app url from config is", "app_url", config.Addr)
 	cookieStore := sessions.NewCookieStore([]byte(sessionSecret))
 	cookieStore.Options = &sessions.Options{
 		Path:     "/",
@@ -94,12 +156,12 @@ func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connectio
 		google.New(
 			config.GOOGLE_CLIENT_ID,
 			config.GOOGLE_CLIENT_SECRET,
-			fmt.Sprintf("%s/auth/google/callback", config.APP_URL),
+			fmt.Sprintf("%s/auth/google/callback", config.Addr),
 			"openid", "email", "profile",
 		),
 	)
 
-	return &AuthAPI{DB: db, logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret, CookieStore: cookieStore}
+	return &AuthAPI{DB: db, logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret, CookieStore: cookieStore, Environment: environment, SessionSecret: sessionSecret, Config: config}
 }
 
 // POST /auth/register
@@ -111,7 +173,15 @@ func (a *AuthAPI) RegisterEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	_, err := utils.SignUpEmailPassword(r.Context(), a.Connection, u.Email, u.Password, "")
 	if err != nil {
-		utils.WriteError(w, a.logger, err, "Failed to sign up user", http.StatusBadRequest)
+		if errors.Is(err, utils.ErrEmailTaken) {
+			utils.WriteError(w, a.logger, err, "Email already in use", http.StatusConflict)
+			return
+		}
+		if errors.Is(err, utils.ErrOAuthOnlyAccount) {
+			utils.WriteError(w, a.logger, err, "This email is registered via Google. Please continue with Google.", http.StatusConflict)
+			return
+		}
+		utils.WriteError(w, a.logger, err, "Could not register", http.StatusInternalServerError)
 		return
 	}
 
@@ -136,14 +206,25 @@ func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email, err := a.EmailClient.R.Verify(r.Context(), []byte(a.RedisSecret), email.VerifyPurpose, reqData.ConfirmationID, reqData.Code)
+	verifiedEmail, err := a.EmailClient.R.Verify(r.Context(), []byte(a.RedisSecret), email.VerifyPurpose, reqData.ConfirmationID, reqData.Code)
 	if err != nil {
-		utils.WriteError(w, a.logger, err, "Failed to verify email", http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, email.ErrNotFound), errors.Is(err, email.ErrExpired):
+			utils.WriteError(w, a.logger, err, "Invalid or expired code", http.StatusBadRequest)
+		case errors.Is(err, email.ErrConsumed):
+			utils.WriteError(w, a.logger, err, "Code already used", http.StatusBadRequest)
+		case errors.Is(err, email.ErrMismatch):
+			utils.WriteError(w, a.logger, err, "Invalid code", http.StatusBadRequest)
+		case errors.Is(err, email.ErrTooMany):
+			utils.WriteError(w, a.logger, err, "Too many attempts, try again later", http.StatusTooManyRequests)
+		default:
+			utils.WriteError(w, a.logger, err, "Failed to verify email", http.StatusInternalServerError)
+		}
 		return
 	}
 
 	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
-		u, err := tx.Users.ByEmail(r.Context(), email)
+		u, err := tx.Users.ByEmail(r.Context(), verifiedEmail)
 		if err != nil {
 			return err
 		}
@@ -156,13 +237,15 @@ func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := utils.GenerateJWT([]byte(a.RedisSecret), email)
+	token, err := utils.GenerateJWT([]byte(a.RedisSecret), verifiedEmail)
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
 		return
 	}
 
-	tokenResponse(w, token, a.logger)
+	returnCookieToken(a.Config.APP_URL, w, token, a.Config)
+
+	returnDefaultPositiveResponse(w, a.logger)
 }
 
 // POST /auth/login
@@ -177,6 +260,11 @@ func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
 		user, err := tx.Users.ByEmail(r.Context(), u.Email)
 		if err != nil {
 			return err
+		}
+
+		// Guard against users who registered via OAuth and do not have a password credential
+		if user.PasswordCredential == nil || user.PasswordCredential.PasswordDisabled {
+			return utils.ErrOAuthOnlyAccount
 		}
 
 		ok, err := utils.ComparePassword(u.Password, user.PasswordCredential.PasswordHash)
@@ -198,11 +286,17 @@ func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		utils.WriteError(w, a.logger, err, "Failed to login", http.StatusInternalServerError)
+		if errors.Is(err, utils.ErrOAuthOnlyAccount) {
+			utils.WriteError(w, a.logger, err, "This account uses Google sign-in. Please continue with Google.", http.StatusConflict)
+			return
+		}
+		utils.WriteError(w, a.logger, err, "Invalid email or password", http.StatusUnauthorized)
 		return
 	}
 
-	tokenResponse(w, tokenOnSuccess, a.logger)
+	returnCookieToken(a.Config.APP_URL, w, tokenOnSuccess, a.Config)
+
+	returnDefaultPositiveResponse(w, a.logger)
 }
 
 // GET /auth/{provider}
@@ -215,7 +309,7 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 	u, err := gothic.CompleteUserAuth(w, r)
 	if err != nil {
 		a.logger.Error("failed to complete auth", "error", err)
-		http.Error(w, "auth failed: "+err.Error(), http.StatusUnauthorized)
+		utils.WriteError(w, a.logger, err, "Authentication failed", http.StatusUnauthorized)
 		return
 	}
 
@@ -322,5 +416,31 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	tokenResponse(w, token, a.logger)
+	returnCookieToken(a.Config.APP_URL, w, token, a.Config)
+
+	http.Redirect(w, r, a.Config.APP_URL+"/auth/ready", http.StatusFound)
+}
+
+// GET /auth/logout
+func (a *AuthAPI) LogoutEndpoint(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	w.WriteHeader(http.StatusOK)
+	var response utils.DefaultResponse
+	response.Success = true
+	response.Message = "Logged out successfully"
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		a.logger.Warn("failed to encode response", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }

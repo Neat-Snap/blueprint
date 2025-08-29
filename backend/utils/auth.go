@@ -18,7 +18,8 @@ import (
 )
 
 var (
-	ErrEmailTaken = errors.New("email already in use")
+	ErrEmailTaken       = errors.New("email already in use")
+	ErrOAuthOnlyAccount = errors.New("oauth only account")
 )
 
 func NormalizeEmail(s string) string {
@@ -112,14 +113,11 @@ func SignUpEmailPassword(ctx context.Context, store *db.Connection, email, passw
 		}
 
 		if err == nil {
-			if u.PasswordCredential != nil && !u.PasswordCredential.PasswordDisabled {
-				return ErrEmailTaken
+			// user exists already
+			if u.PasswordCredential == nil || u.PasswordCredential.PasswordDisabled {
+				return ErrOAuthOnlyAccount
 			}
-			if err := tx.Auth.EnsurePasswordCredential(ctx, u.ID, hash); err != nil {
-				return err
-			}
-			out = u
-			return nil
+			return ErrEmailTaken
 		}
 
 		u = &db.User{
@@ -146,7 +144,7 @@ func SignUpEmailPassword(ctx context.Context, store *db.Connection, email, passw
 func GenerateJWT(secret []byte, email string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": email,
-		"exp":   time.Now().Add(time.Hour * 24 * 7).Unix(),
+		"exp":   time.Now().Add(time.Hour * 24 * 21).Unix(),
 	})
 
 	tokenString, err := token.SignedString(secret)
@@ -154,4 +152,21 @@ func GenerateJWT(secret []byte, email string) (string, error) {
 		return "", err
 	}
 	return tokenString, nil
+}
+
+func DecodeJWT(secret []byte, token string) (string, error) {
+	claims := jwt.MapClaims{}
+	_, err := jwt.ParseWithClaims(token, &claims, func(token *jwt.Token) (interface{}, error) {
+		return secret, nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	sub, ok := claims["email"]
+	if !ok {
+		return "", fmt.Errorf("the email subject was not found in jwt")
+	}
+
+	return sub.(string), nil
 }

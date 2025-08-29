@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -42,8 +44,10 @@ func NewEmailClient(cfg config.Config, logger logger.MultiLogger) *EmailClient {
 	}
 }
 
-func loadTemplate(path string) (string, error) {
-	data, err := os.ReadFile(path)
+func loadTemplate(filename string) (string, error) {
+	_, src, _, _ := runtime.Caller(0) // path to emails.go
+	base := filepath.Dir(src)
+	data, err := os.ReadFile(filepath.Join(base, filename))
 	if err != nil {
 		return "", err
 	}
@@ -77,7 +81,7 @@ func (e *EmailClient) GetTemplateFromFile(filename string) (string, error) {
 }
 
 func (e *EmailClient) buildActionUrl(id, code string) string {
-	return e.Config.APP_URL + "/verify_email?id=" + id + "&code=" + code
+	return e.Config.APP_URL + "/auth/verify?cid=" + id + "&code=" + code
 }
 
 func (e *EmailClient) SendConfirmationEmail(recipient string, subject string, expiresMin int) (string, error) {
@@ -86,7 +90,10 @@ func (e *EmailClient) SendConfirmationEmail(recipient string, subject string, ex
 		return "", err
 	}
 
-	id, code, _ := e.R.Create(context.Background(), []byte(e.Config.REDIS_SECRET), VerifyPurpose, recipient, 6, time.Duration(expiresMin)*time.Minute, 6)
+	id, code, err := e.R.Create(context.Background(), []byte(e.Config.REDIS_SECRET), VerifyPurpose, recipient, 6, time.Duration(expiresMin)*time.Minute, 6)
+	if err != nil {
+		return "", err
+	}
 
 	html := strings.NewReplacer(
 		"{{APP_NAME}}", e.Config.APP_NAME,

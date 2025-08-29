@@ -56,6 +56,8 @@ func (rc *Redis) Create(ctx context.Context, secret []byte, purpose, email strin
 	}
 	mac := codeMAC(secret, id, code)
 	key := rc.Key(purpose, id)
+	keyIdx := rc.Key(purpose+"_idx", strings.ToLower(strings.TrimSpace(email)))
+
 	err = rc.R.HSet(ctx, key, map[string]interface{}{
 		"email":    strings.ToLower(strings.TrimSpace(email)),
 		"mac":      hex.EncodeToString(mac),
@@ -68,6 +70,9 @@ func (rc *Redis) Create(ctx context.Context, secret []byte, purpose, email strin
 		return "", "", err
 	}
 	if err := rc.R.Expire(ctx, key, ttl).Err(); err != nil {
+		return "", "", err
+	}
+	if err := rc.R.Set(ctx, keyIdx, id, ttl).Err(); err != nil {
 		return "", "", err
 	}
 	return id, code, nil
@@ -104,5 +109,16 @@ func (rc *Redis) Verify(ctx context.Context, secret []byte, purpose, id, code st
 	if err := rc.R.HSet(ctx, key, "consumed", 1).Err(); err != nil {
 		return "", err
 	}
+	if em := vals["email"]; em != "" {
+		_ = rc.R.Del(ctx, rc.Key(purpose+"_idx", em)).Err()
+	}
 	return vals["email"], nil
+}
+
+func (rc *Redis) GetIdByEmail(ctx context.Context, purpose, email string) (string, error) {
+	id, err := rc.R.Get(ctx, rc.Key(purpose+"_idx", strings.ToLower(strings.TrimSpace(email)))).Result()
+	if err == redis.Nil {
+		return "", ErrNotFound
+	}
+	return id, err
 }

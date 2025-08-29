@@ -32,7 +32,7 @@ func ReadJSON(b io.ReadCloser, w http.ResponseWriter, logger logger.MultiLogger,
 
 func WriteError(w http.ResponseWriter, logger logger.MultiLogger, err error, message string, status int) {
 	w.WriteHeader(status)
-	logger.Warn("failed to decode request body", "error", err)
+	logger.Warn(message, "error", err, "status", status)
 	if err := json.NewEncoder(w).Encode(DefaultResponse{
 		Message: message,
 		Success: false,

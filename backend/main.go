@@ -58,7 +58,7 @@ func main() {
 	case sig := <-quit:
 		log.Info("received signal", "signal", sig)
 	case err := <-errCh:
-		log.Error("server error", slog.Any("error", err))
+		log.Error("server error", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

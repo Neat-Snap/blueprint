@@ -38,6 +38,8 @@ type Config struct {
 	GOOGLE_CLIENT_ID     string
 	GOOGLE_CLIENT_SECRET string
 	SUPPORT_EMAIL        string
+
+	JWT_SECRET string
 }
 
 func getenv(k, def string) string {
@@ -116,5 +118,7 @@ func Load() Config {
 		GOOGLE_CLIENT_ID:     getenvStrict("GOOGLE_CLIENT_ID"),
 		GOOGLE_CLIENT_SECRET: getenvStrict("GOOGLE_CLIENT_SECRET"),
 		SUPPORT_EMAIL:        fmt.Sprintf("support@%s", getenvStrict("APP_URL")),
+
+		JWT_SECRET: getenvStrict("JWT_SECRET"),
 	}
 }
