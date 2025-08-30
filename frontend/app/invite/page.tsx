@@ -23,7 +23,7 @@ export default function InviteAcceptPage() {
         await acceptInvitation(token);
         if (cancelled) return;
         setStatus("success");
-        // Redirect to dashboard after a short delay
+        // redirect to dashboard after a short delay
         setTimeout(() => {
           router.push("/dashboard");
         }, 1200);

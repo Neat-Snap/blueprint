@@ -27,7 +27,6 @@ export default function AccountPage() {
   const [newPassword, setNewPassword] = useState("");
   const [passwordChanging, setPasswordChanging] = useState(false);
 
-  // Dialog state
   const [nameOpen, setNameOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
@@ -186,7 +185,6 @@ export default function AccountPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Name Dialog */}
       <Dialog open={nameOpen} onOpenChange={setNameOpen}>
         <DialogContent>
           <DialogHeader>
@@ -206,7 +204,6 @@ export default function AccountPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Avatar Dialog */}
       <Dialog open={avatarOpen} onOpenChange={setAvatarOpen}>
         <DialogContent>
           <DialogHeader>
@@ -226,7 +223,6 @@ export default function AccountPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Email Dialog */}
       <Dialog open={emailOpen} onOpenChange={(o) => { setEmailOpen(o); if (!o) { setEmailConfirmationId(null); setEmailCode(""); } }}>
         <DialogContent>
           <DialogHeader>
@@ -259,7 +255,6 @@ export default function AccountPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Password Dialog */}
       <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}>
         <DialogContent>
           <DialogHeader>

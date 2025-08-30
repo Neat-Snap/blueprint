@@ -37,7 +37,7 @@ func NewRouter(c RouterConfig) chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RealIP)
 	r.Use(httprate.Limit(
-		10,
+		20,
 		5*time.Second,
 		httprate.WithKeyFuncs(httprate.KeyByIP, httprate.KeyByEndpoint),
 	))

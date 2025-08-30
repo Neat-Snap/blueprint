@@ -13,7 +13,7 @@ import { ALLOWED_WORKSPACE_ICONS, renderWorkspaceIcon } from "@/lib/icons";
 import { toast } from "sonner";
 
 export function WorkspaceSwitcher() {
-  const { current, all, setCurrentId, createWorkspace } = useWorkspace();
+  const { current, all, switchTo, createWorkspace } = useWorkspace();
   const { isMobile } = useSidebar();
   const [openCreate, setOpenCreate] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -27,7 +27,6 @@ export function WorkspaceSwitcher() {
     return n.slice(0, 2).toUpperCase();
   }, [current]);
 
-  // Cmd/Ctrl + 1..9 to switch workspaces
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
@@ -36,13 +35,14 @@ export function WorkspaceSwitcher() {
         const idx = num - 1;
         if (all[idx]) {
           e.preventDefault();
-          setCurrentId(all[idx].id);
+
+          switchTo(all[idx].id);
         }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [all, setCurrentId]);
+  }, [all, switchTo]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -95,7 +95,7 @@ export function WorkspaceSwitcher() {
               {all.map((w, index) => {
                 const badge = (w.icon && w.icon.trim()) ? w.icon.trim() : (w.name?.slice(0, 2).toUpperCase());
                 return (
-                  <DropdownMenuItem key={w.id} onClick={() => setCurrentId(w.id)} className="gap-2 p-2">
+                  <DropdownMenuItem key={w.id} onClick={() => switchTo(w.id)} className="gap-2 p-2">
                     <div className="flex size-6 items-center justify-center rounded-md border">
                       {w.icon ? (renderWorkspaceIcon(w.icon, "size-4") || <span className="text-[11px] font-medium">{badge}</span>) : (
                         <span className="text-[11px] font-medium">{badge}</span>

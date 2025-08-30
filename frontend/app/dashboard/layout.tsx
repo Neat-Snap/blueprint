@@ -9,7 +9,7 @@ import { AppSidebar, type NavMainItem, type ProjectItem, type SecondaryItem } fr
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { getMe } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { WorkspaceProvider } from "@/lib/workspace-context";
+import { WorkspaceProvider, useWorkspace } from "@/lib/workspace-context";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,7 +32,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const me = await getMe();
         setUser({ name: me.name || "", email: me.email || "", avatar: "" });
       } catch {
-        // Not authenticated -> redirect to login
         router.replace("/auth/login");
         return;
       } finally {
@@ -83,6 +82,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <WorkspaceProvider>
       <SidebarProvider>
+        <WorkspaceSwitchOverlay />
         <AppSidebar
           org={{ name: "Your App", plan: "Free", href: "/dashboard" }}
           user={{ name: user.name || user.email || "User", email: user.email || "", avatar: user.avatar }}
@@ -127,4 +127,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </SidebarProvider>
     </WorkspaceProvider>
   );
+}
+
+function WorkspaceSwitchOverlay() {
+  const { switching } = useWorkspace();
+  if (!switching) return null;
+  return <LoadingScreen label="Switching workspace" immediate />;
 }

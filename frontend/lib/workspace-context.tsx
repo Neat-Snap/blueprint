@@ -8,6 +8,8 @@ export type CurrentWorkspace = { id: number; name: string; icon?: string } | nul
 type Ctx = {
   current: CurrentWorkspace;
   setCurrentId: (id: number | null) => void;
+  switchTo: (id: number) => Promise<void>;
+  switching: boolean;
   all: { id: number; name: string; icon?: string }[];
   refresh: () => Promise<void>;
   createWorkspace: (name: string, icon?: string) => Promise<void>;
@@ -19,6 +21,7 @@ const WorkspaceCtx = createContext<Ctx | undefined>(undefined);
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [all, setAll] = useState<{ id: number; name: string; icon?: string }[]>([]);
   const [currentId, setCurrentId] = useState<number | null>(null);
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
     const saved = typeof window !== "undefined" ? window.localStorage.getItem("currentWorkspaceId") : null;
@@ -70,6 +73,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const value: Ctx = {
     current,
     setCurrentId: (id) => setCurrentId(id),
+    switchTo: async (id: number) => {
+      if (id === currentId) return;
+      setSwitching(true);
+      setCurrentId(id);
+
+      await new Promise((r) => setTimeout(r, 450));
+      setSwitching(false);
+    },
+    switching,
     all,
     refresh,
     createWorkspace,

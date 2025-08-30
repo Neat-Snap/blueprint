@@ -20,7 +20,7 @@ function parseInviteData(data: string): { workspace_id?: number; workspace_name?
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { setCurrentId } = useWorkspace();
+  const { switchTo } = useWorkspace();
   const [loading, setLoading] = useState(true);
   const [list, setList] = useState<Notification[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -44,7 +44,7 @@ export default function NotificationsPage() {
     await markNotificationRead(n.id);
     setList((prev) => prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
     if (payload.workspace_id) {
-      setCurrentId(Number(payload.workspace_id));
+      await switchTo(Number(payload.workspace_id));
       router.push(`/dashboard/settings`);
     }
   }

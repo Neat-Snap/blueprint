@@ -18,7 +18,7 @@ import { Trash2, Users, Type, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
 export default function WorkspaceSettingsPanel() {
-  const { current, refresh, setCurrentId, all } = useWorkspace();
+  const { current, refresh, setCurrentId, switchTo, all } = useWorkspace();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
@@ -35,9 +35,7 @@ export default function WorkspaceSettingsPanel() {
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<{ open: boolean; userId?: number }>({ open: false });
-  // owner reassignment removed
 
-  // Dialogs for new structure
   const [renameOpen, setRenameOpen] = useState(false);
   const [iconOpen, setIconOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -159,10 +157,14 @@ export default function WorkspaceSettingsPanel() {
     if (!current) return;
     try {
       await deleteWorkspace(current.id);
-      // pick another workspace if available
+
       await refresh();
       const remaining = all.filter((w) => w.id !== current.id);
-      setCurrentId(remaining[0]?.id ?? null);
+      if (remaining[0]?.id) {
+        await switchTo(remaining[0].id);
+      } else {
+        setCurrentId(null);
+      }
       toast.success("Workspace deleted");
     } catch (e) {
       toast.error(`Could not delete workspace. Please try again or contact ${SUPPORT_EMAIL}.`);
