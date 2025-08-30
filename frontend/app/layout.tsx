@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
+import { Suspense } from "react";
+import LoadingFallback from "@/components/loading-fallback";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,7 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <Providers>{children}</Providers>
+        <Suspense fallback={<LoadingFallback label="Loading" />}>
+          <Providers>{children}</Providers>
+        </Suspense>
       </body>
     </html>
   );

@@ -15,6 +15,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/compon
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { LoadingScreen } from "@/components/loading-screen";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -49,9 +50,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navSecondary: SecondaryItem[] = [];
 
   if (!authChecked) {
-    return (
-      <div className="p-4">Loading…</div>
-    );
+    return <LoadingScreen label="Loading Dashboard" />;
   }
 
   async function submitFeedback() {
