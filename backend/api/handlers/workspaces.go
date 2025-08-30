@@ -16,6 +16,52 @@ type WorkspacesAPI struct {
 	Connection *db.Connection
 }
 
+// GET /workspaces/{id}/overview
+func (h *WorkspacesAPI) GetWorkspaceOverviewEndpoint(w http.ResponseWriter, r *http.Request) {
+    userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
+    userID := userObj.ID
+
+    workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+    if err != nil {
+        utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+        return
+    }
+
+    workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+    if err != nil {
+        utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+        return
+    }
+
+    var hasAccess bool
+    for _, user := range workspace.Users {
+        if user.ID == userID {
+            hasAccess = true
+            break
+        }
+    }
+    if !hasAccess {
+        h.logger.Warn("user does not have access to workspace", "workspace_id", workspaceID, "user_id", userID)
+        utils.WriteError(w, h.logger, nil, "workspace not found", http.StatusNotFound)
+        return
+    }
+
+    // Minimal per-workspace stats (extend as needed)
+    stats := map[string]any{
+        "members_count": len(workspace.Users),
+    }
+
+    resp := map[string]any{
+        "workspace": map[string]any{
+            "id":   workspace.ID,
+            "name": workspace.Name,
+        },
+        "stats": stats,
+    }
+
+    utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
+}
+
 func NewWorkspacesAPI(logger logger.MultiLogger, connection *db.Connection) *WorkspacesAPI {
 	return &WorkspacesAPI{logger: logger, Connection: connection}
 }

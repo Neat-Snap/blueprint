@@ -1,47 +1,20 @@
 import api from "./api";
 
-export interface ProfileUpdateRequest {
+export type UpdateProfilePayload = {
   name: string;
   avatar_url: string;
-}
+};
 
-export interface ProfileUpdateResponse {
-  name: string;
-  avatar_url: string;
-}
-
-export async function updateProfile(body: ProfileUpdateRequest) {
-  const { data } = await api.patch<ProfileUpdateResponse>("/account/profile", body);
+export async function updateProfile(payload: UpdateProfilePayload) {
+  const { data } = await api.patch<UpdateProfilePayload>("/account/profile", payload);
   return data;
 }
 
-export interface ChangePasswordRequest {
-  current_password: string;
-  new_password: string;
+export async function changePassword(current_password: string, new_password: string) {
+  await api.post("/account/password/change", { current_password, new_password });
 }
 
-export async function changePassword(body: ChangePasswordRequest) {
-  // backend returns success envelope; we don't depend on its shape
-  await api.patch("/account/password/change", body);
-}
-
-export interface ChangeEmailRequest {
-  email: string;
-}
-export interface ChangeEmailResponse {
-  confirmation_id: string;
-}
-
-export async function changeEmail(body: ChangeEmailRequest) {
-  const { data } = await api.patch<ChangeEmailResponse>("/account/email/change", body);
+export async function changeEmail(email: string): Promise<{ confirmation_id: string }> {
+  const { data } = await api.post<{ confirmation_id: string }>("/accounts/email/change", { email });
   return data;
-}
-
-export interface ConfirmEmailRequest {
-  confirmation_id: string;
-  code: string;
-}
-
-export async function confirmEmail(body: ConfirmEmailRequest) {
-  await api.patch("/account/email/confirm", body);
 }

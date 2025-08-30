@@ -230,7 +230,32 @@ func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 		now := time.Now()
 		u.EmailVerifiedAt = &now
-		return tx.Users.Update(r.Context(), u)
+		if err := tx.Users.Update(r.Context(), u); err != nil {
+			return err
+		}
+
+		// Ensure a default workspace exists for this user
+		existing, err := tx.Workspaces.ListForUser(r.Context(), u.ID)
+		if err != nil {
+			return err
+		}
+		if len(existing) == 0 {
+			name := "My Workspace"
+			if u.Name != nil && *u.Name != "" {
+				name = *u.Name + "'s Workspace"
+			}
+			ws := &db.WorkSpace{
+				Name:    name,
+				OwnerID: u.ID,
+				Owner:   *u,
+				Users:   []db.User{*u},
+			}
+			if err := tx.Workspaces.Create(r.Context(), ws); err != nil {
+				return err
+			}
+			_ = tx.Workspaces.AddMember(r.Context(), ws.ID, u.ID, "owner")
+		}
+		return nil
 	})
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to verify email", http.StatusInternalServerError)

@@ -70,6 +70,7 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.Get("/", workspacesAPI.GetWorkspacesEndpoint)
 		r.Post("/", workspacesAPI.CreateWorkspaceEndpoint)
 		r.Get("/{id}", workspacesAPI.GetWorkspaceEndpoint)
+		r.Get("/{id}/overview", workspacesAPI.GetWorkspaceOverviewEndpoint)
 		r.Patch("/{id}", workspacesAPI.UpdateWorkspaceNameEndpoint)
 		r.Delete("/{id}", workspacesAPI.DeleteWorkspaceEndpoint)
 		r.Post("/{id}/members", workspacesAPI.AddMemberEndpoint)
