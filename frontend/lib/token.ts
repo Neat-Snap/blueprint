@@ -15,6 +15,5 @@ export function setToken(token: string | null) {
     if (token) window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
     else window.localStorage.removeItem(TOKEN_STORAGE_KEY);
   } catch {
-    // ignore
   }
 }

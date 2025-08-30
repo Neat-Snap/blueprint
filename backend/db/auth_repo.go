@@ -47,3 +47,17 @@ func (r *authRepo) EnsurePasswordCredential(ctx context.Context, userID uint, ha
 		}).
 		Create(&pc).Error
 }
+
+func (r *authRepo) FindPasswordCredential(ctx context.Context, userID uint) (*PasswordCredential, error) {
+	var pc PasswordCredential
+	err := r.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		First(&pc).Error
+	return &pc, err
+}
+
+func (r *authRepo) DeleteAuthIdentity(ctx context.Context, userID uint) error {
+	return r.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Delete(&AuthIdentity{}).Error
+}

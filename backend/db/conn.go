@@ -49,6 +49,8 @@ type WorkspacesRepo interface {
 	RemoveMember(ctx context.Context, workspaceID, userID uint) error
 	ListForUser(ctx context.Context, userID uint) ([]WorkSpace, error)
 	ReassignOwner(ctx context.Context, workspaceID, newOwnerID uint) error
+	Update(ctx context.Context, w *WorkSpace) error
+	Delete(ctx context.Context, w *WorkSpace) error
 }
 
 type AuthRepo interface {
@@ -56,4 +58,6 @@ type AuthRepo interface {
 	LinkIdentity(ctx context.Context, userID uint, provider, subject string, providerEmail *string) error
 	EnsurePasswordCredential(ctx context.Context, userID uint, hashed string) error
 	FindUserByAuthIdentity(ctx context.Context, ai *AuthIdentity) (*User, error)
+	FindPasswordCredential(ctx context.Context, userID uint) (*PasswordCredential, error)
+	DeleteAuthIdentity(ctx context.Context, userID uint) error
 }

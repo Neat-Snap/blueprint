@@ -55,3 +55,11 @@ func (r *workspacesRepo) ReassignOwner(ctx context.Context, workspaceID, newOwne
 		Where("id = ?", workspaceID).
 		Update("owner_id", newOwnerID).Error
 }
+
+func (r *workspacesRepo) Update(ctx context.Context, w *WorkSpace) error {
+	return r.db.WithContext(ctx).Save(w).Error
+}
+
+func (r *workspacesRepo) Delete(ctx context.Context, w *WorkSpace) error {
+	return r.db.WithContext(ctx).Delete(w).Error
+}

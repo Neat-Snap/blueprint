@@ -21,7 +21,6 @@ export default function ResendEmailPage() {
 
   const email = params.get("email") || "";
 
-  // If already authenticated, redirect to dashboard
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -31,7 +30,6 @@ export default function ResendEmailPage() {
           router.replace("/dashboard");
         }
       } catch (_) {
-        // not logged in; ignore
       }
     })();
     return () => { cancelled = true };

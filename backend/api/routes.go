@@ -58,5 +58,34 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.Post("/resend-email", authAPI.ResendEmailEndpoint)
 	})
 
+	dashboardAPI := handlers.NewDashboardAPI(c.Logger, c.Connection)
+	r.Route("/dashboard", func(r chi.Router) {
+		r.Use(mw.Confirmation(c.Config, c.EmailClient.R))
+		r.Get("/overview", dashboardAPI.OverViewEndpoint)
+	})
+
+	workspacesAPI := handlers.NewWorkspacesAPI(c.Logger, c.Connection)
+	r.Route("/workspaces", func(r chi.Router) {
+		r.Use(mw.Confirmation(c.Config, c.EmailClient.R))
+		r.Get("/", workspacesAPI.GetWorkspacesEndpoint)
+		r.Post("/", workspacesAPI.CreateWorkspaceEndpoint)
+		r.Get("/{id}", workspacesAPI.GetWorkspaceEndpoint)
+		r.Patch("/{id}", workspacesAPI.UpdateWorkspaceNameEndpoint)
+		r.Delete("/{id}", workspacesAPI.DeleteWorkspaceEndpoint)
+		r.Post("/{id}/members", workspacesAPI.AddMemberEndpoint)
+		r.Delete("/{id}/members/{user_id}", workspacesAPI.RemoveMemberEndpoint)
+		r.Post("/{id}/owner", workspacesAPI.ReassignOwnerEndpoint)
+	})
+
+	usersAPI := handlers.NewUsersAPI(c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Config)
+	r.Route("/account", func(r chi.Router) {
+		r.Use(mw.Confirmation(c.Config, c.EmailClient.R))
+		r.Patch("/me", authAPI.MeEndpoint)
+		r.Patch("/profile", usersAPI.UpdateProfileEndpoint)
+		r.Patch("/email/change", usersAPI.ChangeEmailEndpoint)
+		r.Patch("/email/confirm", usersAPI.ConfirmEmailEndpoint)
+		r.Patch("/password/change", usersAPI.ChangePasswordEndpoint)
+	})
+
 	return r
 }

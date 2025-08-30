@@ -22,7 +22,6 @@ export default function VerifyEmailPage() {
   const confirmation_id = params.get("cid") || "";
   const email = params.get("email") || "";
 
-  // If already authenticated, redirect to dashboard
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -32,13 +31,11 @@ export default function VerifyEmailPage() {
           router.replace("/dashboard");
         }
       } catch (_) {
-        // not logged in; ignore
       }
     })();
     return () => { cancelled = true };
   }, [router]);
 
-  // Start a 60s countdown before showing the resend link
   useEffect(() => {
     setResendCountdown(60);
     const interval = setInterval(() => {
