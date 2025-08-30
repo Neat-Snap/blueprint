@@ -7,8 +7,10 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/c
 import { useWorkspace } from "@/lib/workspace-context";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ALLOWED_WORKSPACE_ICONS, renderWorkspaceIcon } from "@/lib/icons";
 
 export function WorkspaceSwitcher() {
   const { current, all, setCurrentId, createWorkspace } = useWorkspace();
@@ -66,7 +68,11 @@ export function WorkspaceSwitcher() {
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
                 <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <span className="text-xs font-medium">{currentBadge}</span>
+                  {current?.icon ? (
+                    renderWorkspaceIcon(current.icon, "size-4") || <span className="text-xs font-medium">{currentBadge}</span>
+                  ) : (
+                    <span className="text-xs font-medium">{currentBadge}</span>
+                  )}
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{current?.name || "Select workspace"}</span>
@@ -87,7 +93,9 @@ export function WorkspaceSwitcher() {
                 return (
                   <DropdownMenuItem key={w.id} onClick={() => setCurrentId(w.id)} className="gap-2 p-2">
                     <div className="flex size-6 items-center justify-center rounded-md border">
-                      <span className="text-[11px] font-medium">{badge}</span>
+                      {w.icon ? (renderWorkspaceIcon(w.icon, "size-4") || <span className="text-[11px] font-medium">{badge}</span>) : (
+                        <span className="text-[11px] font-medium">{badge}</span>
+                      )}
                     </div>
                     {w.name}
                     {index < 9 && <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>}
@@ -118,8 +126,25 @@ export function WorkspaceSwitcher() {
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="My workspace" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="icon">Icon (emoji or 1-2 letters)</Label>
-              <Input id="icon" value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🧪 or SG" />
+              <Label htmlFor="icon">Icon</Label>
+              <Select value={icon} onValueChange={(v) => setIcon(v)}>
+                <SelectTrigger id="icon" className="w-full">
+                  <SelectValue placeholder="Select an icon" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ALLOWED_WORKSPACE_ICONS.map((ic) => {
+                    const label = ic.charAt(0).toUpperCase() + ic.slice(1);
+                    return (
+                      <SelectItem key={ic} value={ic}>
+                        <span className="flex items-center gap-2">
+                          {renderWorkspaceIcon(ic, "size-4")}
+                          <span>{label}</span>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={creating}>{creating ? "Creating..." : "Create"}</Button>

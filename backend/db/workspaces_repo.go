@@ -50,10 +50,33 @@ func (r *workspacesRepo) ListForUser(ctx context.Context, userID uint) ([]WorkSp
 }
 
 func (r *workspacesRepo) ReassignOwner(ctx context.Context, workspaceID, newOwnerID uint) error {
-	return r.db.WithContext(ctx).
-		Model(&WorkSpace{}).
-		Where("id = ?", workspaceID).
-		Update("owner_id", newOwnerID).Error
+    return r.db.WithContext(ctx).
+        Model(&WorkSpace{}).
+        Where("id = ?", workspaceID).
+        Update("owner_id", newOwnerID).Error
+}
+
+func (r *workspacesRepo) GetUserRole(ctx context.Context, workspaceID, userID uint) (string, error) {
+    var uw UserWorkspace
+    err := r.db.WithContext(ctx).
+        Where("workspace_id = ? AND user_id = ?", workspaceID, userID).
+        First(&uw).Error
+    if err != nil {
+        return "", err
+    }
+    return uw.Role, nil
+}
+
+func (r *workspacesRepo) RolesForWorkspace(ctx context.Context, workspaceID uint) (map[uint]string, error) {
+    var uws []UserWorkspace
+    if err := r.db.WithContext(ctx).Where("workspace_id = ?", workspaceID).Find(&uws).Error; err != nil {
+        return nil, err
+    }
+    res := make(map[uint]string, len(uws))
+    for _, uw := range uws {
+        res[uw.UserID] = uw.Role
+    }
+    return res, nil
 }
 
 func (r *workspacesRepo) Update(ctx context.Context, w *WorkSpace) error {

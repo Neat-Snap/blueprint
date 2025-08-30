@@ -34,7 +34,7 @@ export async function deleteWorkspace(id: number): Promise<{ success: boolean; s
   return data;
 }
 
-export async function addMember(workspaceId: number, userId: number, role: "owner" | "member"): Promise<{ success: boolean; status: string }> {
+export async function addMember(workspaceId: number, userId: number, role: "regular" | "admin"): Promise<{ success: boolean; status: string }> {
   const { data } = await api.post<{ success: boolean; status: string }>(`/workspaces/${workspaceId}/members`, {
     user_id: userId,
     role,
@@ -47,12 +47,19 @@ export async function removeMember(workspaceId: number, userId: number): Promise
   return data;
 }
 
-export async function reassignOwner(workspaceId: number, userId: number): Promise<{ success: boolean; status: string }> {
-  const { data } = await api.post<{ success: boolean; status: string }>(`/workspaces/${workspaceId}/owner`, {
-    user_id: userId,
-  });
+export async function updateMemberRole(
+  workspaceId: number,
+  userId: number,
+  role: "regular" | "admin"
+): Promise<{ status: string }> {
+  const { data } = await api.patch<{ status: string }>(
+    `/workspaces/${workspaceId}/members/${userId}/role`,
+    { role }
+  );
   return data;
 }
+
+// owner reassignment removed
 
 export type WorkspaceOverview = {
   workspace: { id: number; name: string; icon?: string };
@@ -61,5 +68,36 @@ export type WorkspaceOverview = {
 
 export async function getWorkspaceOverview(id: number): Promise<WorkspaceOverview> {
   const { data } = await api.get<WorkspaceOverview>(`/workspaces/${id}/overview`);
+  return data;
+}
+
+// Invitations
+export async function createInvitation(workspaceId: number, email: string, role: "regular" | "admin" = "regular"): Promise<{ token: string }> {
+  const { data } = await api.post<{ token: string }>(`/workspaces/${workspaceId}/invitations`, { email, role });
+  return data;
+}
+
+export async function acceptInvitation(token: string): Promise<{ status: string }> {
+  const { data } = await api.post<{ status: string }>(`/workspaces/invitations/accept`, { token });
+  return data;
+}
+
+export type WorkspaceInvitation = {
+  id: number;
+  email: string;
+  role: "regular" | "admin" | string;
+  token: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+};
+
+export async function listInvitations(workspaceId: number): Promise<WorkspaceInvitation[]> {
+  const { data } = await api.get<WorkspaceInvitation[]>(`/workspaces/${workspaceId}/invitations`);
+  return data;
+}
+
+export async function revokeInvitation(workspaceId: number, invitationId: number): Promise<{ status: string }> {
+  const { data } = await api.delete<{ status: string }>(`/workspaces/${workspaceId}/invitations/${invitationId}`);
   return data;
 }

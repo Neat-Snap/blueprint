@@ -46,6 +46,9 @@ func NewRouter(c RouterConfig) chi.Router {
 	api := handlers.NewTestHealthAPI(c.DB, c.Logger)
 	r.Get("/health", api.HealthHandler)
 
+	feedbackAPI := handlers.NewFeedbackAPI(c.Logger, c.Connection, c.EmailClient, c.Config)
+	r.With(mw.Confirmation(c.Config, c.EmailClient.R)).Post("/feedback", feedbackAPI.SubmitEndpoint)
+
 	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Env, c.Config.SESSION_SECRET, c.Config)
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/signup", authAPI.RegisterEndpoint)
@@ -71,11 +74,15 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.Post("/", workspacesAPI.CreateWorkspaceEndpoint)
 		r.Get("/{id}", workspacesAPI.GetWorkspaceEndpoint)
 		r.Get("/{id}/overview", workspacesAPI.GetWorkspaceOverviewEndpoint)
+		r.Get("/{id}/invitations", workspacesAPI.ListInvitationsEndpoint)
+		r.Delete("/{id}/invitations/{inv_id}", workspacesAPI.RevokeInvitationEndpoint)
 		r.Patch("/{id}", workspacesAPI.UpdateWorkspaceNameEndpoint)
 		r.Delete("/{id}", workspacesAPI.DeleteWorkspaceEndpoint)
 		r.Post("/{id}/members", workspacesAPI.AddMemberEndpoint)
+		r.Patch("/{id}/members/{user_id}/role", workspacesAPI.UpdateMemberRoleEndpoint)
 		r.Delete("/{id}/members/{user_id}", workspacesAPI.RemoveMemberEndpoint)
-		r.Post("/{id}/owner", workspacesAPI.ReassignOwnerEndpoint)
+		r.Post("/{id}/invitations", workspacesAPI.CreateInvitationEndpoint)
+		r.Post("/invitations/accept", workspacesAPI.AcceptInvitationEndpoint)
 	})
 
 	usersAPI := handlers.NewUsersAPI(c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Config)
@@ -86,6 +93,13 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.Patch("/email/change", usersAPI.ChangeEmailEndpoint)
 		r.Patch("/email/confirm", usersAPI.ConfirmEmailEndpoint)
 		r.Patch("/password/change", usersAPI.ChangePasswordEndpoint)
+	})
+
+	notificationsAPI := handlers.NewNotificationsAPI(c.Logger, c.Connection)
+	r.Route("/notifications", func(r chi.Router) {
+		r.Use(mw.Confirmation(c.Config, c.EmailClient.R))
+		r.Get("/", notificationsAPI.ListEndpoint)
+		r.Patch("/{id}/read", notificationsAPI.MarkReadEndpoint)
 	})
 
 	return r

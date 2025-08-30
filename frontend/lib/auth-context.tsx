@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import jwtDecode from "jwt-decode";
+import { jwtDecode } from "jwt-decode";
 import { getToken, setToken } from "./token";
 
 type Decoded = { sub?: string; email?: string; [k: string]: any };

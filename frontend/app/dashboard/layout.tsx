@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users2, Settings2, Plus } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { LayoutDashboard, Settings2, MessageSquareText, HelpCircle } from "lucide-react";
 
 import { AppSidebar, type NavMainItem, type ProjectItem, type SecondaryItem } from "@/components/app-sidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -11,10 +11,18 @@ import { getMe } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { WorkspaceProvider } from "@/lib/workspace-context";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [user, setUser] = useState<{ name: string; email: string; avatar: string }>({ name: "", email: "", avatar: "" });
+  const [authChecked, setAuthChecked] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -22,10 +30,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const me = await getMe();
         setUser({ name: me.name || "", email: me.email || "", avatar: "" });
       } catch {
-        // noop; page's guards will redirect if needed
+        // Not authenticated -> redirect to login
+        router.replace("/auth/login");
+        return;
+      } finally {
+        setAuthChecked(true);
       }
     })();
-  }, []);
+  }, [router]);
 
   const navMain: NavMainItem[] = [
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, isActive: pathname === "/dashboard" },
@@ -34,6 +46,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const projects: ProjectItem[] = [];
   const navSecondary: SecondaryItem[] = [];
+
+  if (!authChecked) {
+    return (
+      <div className="p-4">Loading…</div>
+    );
+  }
+
+  async function submitFeedback() {
+    if (!feedback.trim()) return;
+    setSending(true);
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: feedback }),
+      });
+      setFeedback("");
+      setFeedbackOpen(false);
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <WorkspaceProvider>
@@ -50,9 +84,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b bg-background px-4">
             <SidebarTrigger />
             <div className="ml-auto flex items-center gap-2">
-              <Button asChild size="sm" className="hidden md:inline-flex">
-                <Link href="/dashboard/workspaces/new"><Plus className="mr-2 h-4 w-4" /> New workspace</Link>
+              <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+                <Link href="/help" className="inline-flex items-center"><HelpCircle className="mr-2 h-4 w-4" /> Help</Link>
               </Button>
+              <DropdownMenu open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="secondary" className="inline-flex items-center">
+                    <MessageSquareText className="mr-2 h-4 w-4" /> Feedback
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg p-0" align="end" side="bottom" sideOffset={8}>
+                  <div className="p-3">
+                    <div className="mb-2 text-sm font-medium">Send feedback</div>
+                    <div className="space-y-2">
+                      <Label htmlFor="feedback-box" className="text-xs text-muted-foreground">Message</Label>
+                      <Textarea id="feedback-box" rows={4} placeholder="Tell us what's on your mind…" value={feedback} onChange={(e) => setFeedback(e.target.value)} />
+                    </div>
+                    <div className="mt-3 flex items-center justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setFeedbackOpen(false)}>Cancel</Button>
+                      <Button size="sm" onClick={submitFeedback} disabled={sending || !feedback.trim()}>{sending ? "Sending…" : "Send"}</Button>
+                    </div>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </header>
           <div className="p-4 md:p-6">{children}</div>

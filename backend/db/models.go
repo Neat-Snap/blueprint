@@ -24,6 +24,22 @@ type User struct {
 	WorkSpaces []WorkSpace `gorm:"many2many:user_workspaces;joinForeignKey:UserID;joinReferences:WorkspaceID;constraint:OnDelete:CASCADE;"`
 }
 
+type Notification struct {
+	ID        uint `gorm:"primaryKey"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+
+	UserID uint  `gorm:"index;not null"`
+	User   *User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+
+	// type examples: "workspace_invite"
+	Type string `gorm:"type:varchar(64);not null"`
+	// json payload
+	Data string `gorm:"type:text;not null"`
+
+	ReadAt *time.Time `gorm:"index"`
+}
+
 type PasswordCredential struct {
 	ID uint `gorm:"primaryKey"`
 
@@ -70,7 +86,22 @@ type UserWorkspace struct {
 	UserID      uint `gorm:"primaryKey;index"`
 	WorkspaceID uint `gorm:"primaryKey;index"`
 
-	Role string `gorm:"type:varchar(32);not null;default:'member'"`
+	Role string `gorm:"type:varchar(32);not null;default:'regular'"`
 
 	CreatedAt time.Time
+}
+
+type WorkspaceInvitation struct {
+	ID        uint `gorm:"primaryKey"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+
+	WorkspaceID uint       `gorm:"index;not null"`
+	Workspace   *WorkSpace `gorm:"foreignKey:WorkspaceID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+
+	Email     string    `gorm:"type:varchar(191);index;not null"`
+	Token     string    `gorm:"type:varchar(255);uniqueIndex;not null"`
+	Role      string    `gorm:"type:varchar(32);not null;default:'regular'"`
+	Status    string    `gorm:"type:varchar(32);not null;default:'pending'"`
+	ExpiresAt time.Time `gorm:"index"`
 }
