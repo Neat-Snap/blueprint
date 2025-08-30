@@ -1,9 +1,10 @@
 import api from "./api";
 
-export type Workspace = { id: number; name: string; owner_id: number };
+export type Workspace = { id: number; name: string; icon?: string; owner_id: number };
 export type WorkspaceDetail = {
   id: number;
   name: string;
+  icon?: string;
   owner_id: number;
   members: { id: number; name: string; role: string }[];
 };
@@ -13,8 +14,8 @@ export async function listWorkspaces(): Promise<Workspace[]> {
   return data;
 }
 
-export async function createWorkspace(name: string): Promise<{ id: number; name: string; role: string }> {
-  const { data } = await api.post<{ id: number; name: string; role: string }>("/workspaces", { name });
+export async function createWorkspace(name: string, icon?: string): Promise<{ id: number; name: string; icon?: string; role: string }> {
+  const { data } = await api.post<{ id: number; name: string; icon?: string; role: string }>("/workspaces", { name, icon });
   return data;
 }
 
@@ -23,8 +24,8 @@ export async function getWorkspace(id: number): Promise<WorkspaceDetail> {
   return data;
 }
 
-export async function updateWorkspaceName(id: number, name: string): Promise<{ success: boolean; status: string }> {
-  const { data } = await api.patch<{ success: boolean; status: string }>(`/workspaces/${id}`, { name });
+export async function updateWorkspaceName(id: number, name: string, icon?: string): Promise<{ success: boolean; status: string }> {
+  const { data } = await api.patch<{ success: boolean; status: string }>(`/workspaces/${id}`, { name, icon });
   return data;
 }
 
@@ -54,7 +55,7 @@ export async function reassignOwner(workspaceId: number, userId: number): Promis
 }
 
 export type WorkspaceOverview = {
-  workspace: { id: number; name: string };
+  workspace: { id: number; name: string; icon?: string };
   stats: { members_count: number };
 };
 

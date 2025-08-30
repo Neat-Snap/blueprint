@@ -3,21 +3,21 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { listWorkspaces, createWorkspace as apiCreate, deleteWorkspace as apiDelete } from "./workspaces";
 
-export type CurrentWorkspace = { id: number; name: string } | null;
+export type CurrentWorkspace = { id: number; name: string; icon?: string } | null;
 
 type Ctx = {
   current: CurrentWorkspace;
   setCurrentId: (id: number | null) => void;
-  all: { id: number; name: string }[];
+  all: { id: number; name: string; icon?: string }[];
   refresh: () => Promise<void>;
-  createWorkspace: (name: string) => Promise<void>;
+  createWorkspace: (name: string, icon?: string) => Promise<void>;
   deleteWorkspace: (id: number) => Promise<void>;
 };
 
 const WorkspaceCtx = createContext<Ctx | undefined>(undefined);
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
-  const [all, setAll] = useState<{ id: number; name: string }[]>([]);
+  const [all, setAll] = useState<{ id: number; name: string; icon?: string }[]>([]);
   const [currentId, setCurrentId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   async function refresh() {
     const items = await listWorkspaces();
-    const mapped = items.map((w) => ({ id: w.id, name: w.name }));
+    const mapped = items.map((w) => ({ id: w.id, name: w.name, icon: w.icon }));
     setAll(mapped);
     if (!currentId && mapped.length) setCurrentId(mapped[0].id);
     if (currentId && !mapped.find((w) => w.id === currentId)) setCurrentId(mapped[0]?.id ?? null);
@@ -50,8 +50,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  async function createWorkspace(name: string) {
-    const created = await apiCreate(name);
+  async function createWorkspace(name: string, icon?: string) {
+    const created = await apiCreate(name, icon);
     await refresh();
     setCurrentId(created.id);
   }

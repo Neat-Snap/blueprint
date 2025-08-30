@@ -8,8 +8,7 @@ import {
   LogOut,
   Sparkles,
 } from "lucide-react"
-import Link from "next/link"
-import { logout } from "@/lib/auth"
+import { useRouter } from "next/navigation"
 
 import {
   Avatar,
@@ -31,6 +30,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { logout as apiLogout } from "@/lib/auth"
+import { useAuth } from "@/lib/auth-context"
 
 export function NavUser({
   user,
@@ -42,6 +43,8 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const router = useRouter()
+  const { logout: clearAuth } = useAuth()
 
   return (
     <SidebarMenu>
@@ -65,9 +68,9 @@ export function NavUser({
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-            side="top"
+            side={isMobile ? "bottom" : "right"}
             align="end"
-            sideOffset={6}
+            sideOffset={4}
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
@@ -90,27 +93,27 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/account">
-                  <BadgeCheck />
-                  Account
-                </Link>
+              <DropdownMenuItem onClick={() => router.push("/dashboard/account") }>
+                <BadgeCheck />
+                Account
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/billing">
-                  <CreditCard />
-                  Billing
-                </Link>
+              <DropdownMenuItem onClick={() => router.push("/dashboard/billing") }>
+                <CreditCard />
+                Billing
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/notifications">
-                  <Bell />
-                  Notifications
-                </Link>
+              <DropdownMenuItem onClick={() => router.push("/dashboard/account#notifications") }>
+                <Bell />
+                Notifications
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => logout()}>
+            <DropdownMenuItem
+              onClick={async () => {
+                await apiLogout();
+                clearAuth();
+                router.replace("/auth/login");
+              }}
+            >
               <LogOut />
               Log out
             </DropdownMenuItem>

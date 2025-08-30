@@ -18,48 +18,49 @@ type WorkspacesAPI struct {
 
 // GET /workspaces/{id}/overview
 func (h *WorkspacesAPI) GetWorkspaceOverviewEndpoint(w http.ResponseWriter, r *http.Request) {
-    userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
-    userID := userObj.ID
+	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
+	userID := userObj.ID
 
-    workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
-    if err != nil {
-        utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
-        return
-    }
+	workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+		return
+	}
 
-    workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
-    if err != nil {
-        utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
-        return
-    }
+	workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+		return
+	}
 
-    var hasAccess bool
-    for _, user := range workspace.Users {
-        if user.ID == userID {
-            hasAccess = true
-            break
-        }
-    }
-    if !hasAccess {
-        h.logger.Warn("user does not have access to workspace", "workspace_id", workspaceID, "user_id", userID)
-        utils.WriteError(w, h.logger, nil, "workspace not found", http.StatusNotFound)
-        return
-    }
+	var hasAccess bool
+	for _, user := range workspace.Users {
+		if user.ID == userID {
+			hasAccess = true
+			break
+		}
+	}
+	if !hasAccess {
+		h.logger.Warn("user does not have access to workspace", "workspace_id", workspaceID, "user_id", userID)
+		utils.WriteError(w, h.logger, nil, "workspace not found", http.StatusNotFound)
+		return
+	}
 
-    // Minimal per-workspace stats (extend as needed)
-    stats := map[string]any{
-        "members_count": len(workspace.Users),
-    }
+	// Minimal per-workspace stats (extend as needed)
+	stats := map[string]any{
+		"members_count": len(workspace.Users),
+	}
 
-    resp := map[string]any{
-        "workspace": map[string]any{
-            "id":   workspace.ID,
-            "name": workspace.Name,
-        },
-        "stats": stats,
-    }
+	resp := map[string]any{
+		"workspace": map[string]any{
+			"id":   workspace.ID,
+			"name": workspace.Name,
+			"icon": workspace.Icon,
+		},
+		"stats": stats,
+	}
 
-    utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
+	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }
 
 func NewWorkspacesAPI(logger logger.MultiLogger, connection *db.Connection) *WorkspacesAPI {
@@ -79,6 +80,7 @@ func (h *WorkspacesAPI) GetWorkspacesEndpoint(w http.ResponseWriter, r *http.Req
 	type respPart struct {
 		ID      uint   `json:"id"`
 		Name    string `json:"name"`
+		Icon    string `json:"icon"`
 		OwnerID int    `json:"owner_id"`
 	}
 
@@ -88,6 +90,7 @@ func (h *WorkspacesAPI) GetWorkspacesEndpoint(w http.ResponseWriter, r *http.Req
 		resp = append(resp, respPart{
 			ID:      ws.ID,
 			Name:    ws.Name,
+			Icon:    ws.Icon,
 			OwnerID: int(ws.OwnerID),
 		})
 	}
@@ -100,6 +103,7 @@ func (h *WorkspacesAPI) CreateWorkspaceEndpoint(w http.ResponseWriter, r *http.R
 
 	var req struct {
 		Name string `json:"name"`
+		Icon string `json:"icon"`
 	}
 
 	err := utils.ReadJSON(r.Body, w, h.logger, &req)
@@ -110,6 +114,7 @@ func (h *WorkspacesAPI) CreateWorkspaceEndpoint(w http.ResponseWriter, r *http.R
 
 	ws := &db.WorkSpace{
 		Name:    req.Name,
+		Icon:    req.Icon,
 		OwnerID: userObj.ID,
 		Owner:   *userObj,
 		Users:   []db.User{*userObj},
@@ -126,10 +131,12 @@ func (h *WorkspacesAPI) CreateWorkspaceEndpoint(w http.ResponseWriter, r *http.R
 	resp := struct {
 		ID   uint   `json:"id"`
 		Name string `json:"name"`
+		Icon string `json:"icon"`
 		Role string `json:"role"`
 	}{
 		ID:   ws.ID,
-		Name: req.Name,
+		Name: ws.Name,
+		Icon: ws.Icon,
 		Role: "owner",
 	}
 
@@ -185,6 +192,7 @@ func (h *WorkspacesAPI) GetWorkspaceEndpoint(w http.ResponseWriter, r *http.Requ
 	resp := struct {
 		ID      uint   `json:"id"`
 		Name    string `json:"name"`
+		Icon    string `json:"icon"`
 		OwnerID int    `json:"owner_id"`
 		Members []struct {
 			ID   uint   `json:"id"`
@@ -194,6 +202,7 @@ func (h *WorkspacesAPI) GetWorkspaceEndpoint(w http.ResponseWriter, r *http.Requ
 	}{
 		ID:      workspace.ID,
 		Name:    workspace.Name,
+		Icon:    workspace.Icon,
 		OwnerID: int(workspace.OwnerID),
 		Members: members,
 	}
@@ -226,6 +235,7 @@ func (h *WorkspacesAPI) UpdateWorkspaceNameEndpoint(w http.ResponseWriter, r *ht
 
 	var req struct {
 		Name string `json:"name"`
+		Icon string `json:"icon"`
 	}
 
 	err = utils.ReadJSON(r.Body, w, h.logger, &req)
@@ -234,7 +244,12 @@ func (h *WorkspacesAPI) UpdateWorkspaceNameEndpoint(w http.ResponseWriter, r *ht
 		return
 	}
 
-	workspace.Name = req.Name
+	if req.Name != "" {
+		workspace.Name = req.Name
+	}
+	if req.Icon != "" {
+		workspace.Icon = req.Icon
+	}
 
 	err = h.Connection.Workspaces.Update(r.Context(), workspace)
 	if err != nil {

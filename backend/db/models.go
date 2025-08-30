@@ -56,6 +56,7 @@ type WorkSpace struct {
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 
 	Name string
+	Icon string `gorm:"type:varchar(64);default:''"`
 
 	Users []User `gorm:"many2many:user_workspaces;joinForeignKey:WorkspaceID;joinReferences:UserID;constraint:OnDelete:CASCADE;"`
 

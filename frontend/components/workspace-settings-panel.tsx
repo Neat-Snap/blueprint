@@ -15,6 +15,7 @@ export default function WorkspaceSettingsPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
+  const [icon, setIcon] = useState("");
   const [ownerId, setOwnerId] = useState<number | null>(null);
   const [members, setMembers] = useState<{ id: number; name: string; role: string }[]>([]);
   const [newMemberId, setNewMemberId] = useState("");
@@ -29,6 +30,7 @@ export default function WorkspaceSettingsPanel() {
       try {
         const data = await getWorkspace(current.id);
         setName(data.name);
+        setIcon(data.icon || "");
         setOwnerId(data.owner_id);
         setMembers(data.members);
       } finally {
@@ -41,7 +43,7 @@ export default function WorkspaceSettingsPanel() {
     if (!current || !name.trim()) return;
     setSaving(true);
     try {
-      await updateWorkspaceName(current.id, name.trim());
+      await updateWorkspaceName(current.id, name.trim(), icon.trim() || undefined);
       await refresh();
     } finally {
       setSaving(false);
@@ -96,6 +98,10 @@ export default function WorkspaceSettingsPanel() {
           <div className="space-y-2">
             <Label htmlFor="ws-name">Name</Label>
             <Input id="ws-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Corp" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ws-icon">Icon (emoji or 1-2 letters)</Label>
+            <Input id="ws-icon" value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🅰️ or AC" maxLength={8} />
           </div>
         </CardContent>
         <CardFooter className="justify-end">

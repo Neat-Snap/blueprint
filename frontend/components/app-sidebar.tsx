@@ -49,7 +49,7 @@ export type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 
 export function AppSidebar({ org, user, navMain, projects = [], navSecondary = [], headerSlot, ...props }: AppSidebarProps) {
   return (
-    <Sidebar variant="inset" {...props}>
+    <Sidebar variant="inset" collapsible="icon" {...props}>
       <SidebarHeader>
         {headerSlot ? (
           headerSlot
