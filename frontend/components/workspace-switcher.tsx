@@ -7,10 +7,10 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/c
 import { useWorkspace } from "@/lib/workspace-context";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ALLOWED_WORKSPACE_ICONS, renderWorkspaceIcon } from "@/lib/icons";
+import { toast } from "sonner";
 
 export function WorkspaceSwitcher() {
   const { current, all, setCurrentId, createWorkspace } = useWorkspace();
@@ -19,6 +19,7 @@ export function WorkspaceSwitcher() {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("");
+  const [iconOpen, setIconOpen] = useState(false);
 
   const currentBadge = useMemo(() => {
     if (current?.icon && current.icon.trim()) return current.icon.trim();
@@ -52,6 +53,9 @@ export function WorkspaceSwitcher() {
       setOpenCreate(false);
       setName("");
       setIcon("");
+      toast.success("Workspace created");
+    } catch (e) {
+      toast.error("Could not create workspace. Please try again or contact support@statgrad.app.");
     } finally {
       setCreating(false);
     }
@@ -123,33 +127,52 @@ export function WorkspaceSwitcher() {
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="My workspace" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="icon">Icon</Label>
-              <Select value={icon} onValueChange={(v) => setIcon(v)}>
-                <SelectTrigger id="icon" className="w-full">
-                  <SelectValue placeholder="Select an icon" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ALLOWED_WORKSPACE_ICONS.map((ic) => {
-                    const label = ic.charAt(0).toUpperCase() + ic.slice(1);
-                    return (
-                      <SelectItem key={ic} value={ic}>
-                        <span className="flex items-center gap-2">
-                          {renderWorkspaceIcon(ic, "size-4")}
-                          <span>{label}</span>
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIconOpen(true)}
+                  className={`flex h-9 w-9 items-center justify-center rounded-md border transition-colors ${icon ? "border-ring bg-accent/40" : "hover:bg-muted"}`}
+                  aria-label="Choose icon"
+                >
+                  {icon ? (
+                    renderWorkspaceIcon(icon, "size-4")
+                  ) : (
+                    <span className="text-[11px] font-medium">
+                      {(name.trim() ? name.trim().slice(0, 2) : "WS").toUpperCase()}
+                    </span>
+                  )}
+                </button>
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="My workspace" />
+              </div>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={creating}>{creating ? "Creating..." : "Create"}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Icon Picker for Create */}
+      <Dialog open={iconOpen} onOpenChange={setIconOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select icon</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
+              {ALLOWED_WORKSPACE_ICONS.map((ic) => (
+                <button
+                  key={ic}
+                  type="button"
+                  onClick={() => { setIcon(ic); setIconOpen(false); }}
+                  className={`flex h-10 w-10 items-center justify-center rounded border transition-colors ${icon === ic ? "border-ring bg-accent" : "hover:bg-muted"}`}
+                  aria-label={ic}
+                >
+                  {renderWorkspaceIcon(ic, "size-5")}
+                </button>
+              ))}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>

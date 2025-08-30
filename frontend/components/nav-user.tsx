@@ -1,5 +1,6 @@
 "use client"
 
+import React, { useEffect, useState } from "react"
 import {
   BadgeCheck,
   Bell,
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/sidebar"
 import { logout as apiLogout } from "@/lib/auth"
 import { useAuth } from "@/lib/auth-context"
+import { listNotifications } from "@/lib/notifications"
 
 export function NavUser({
   user,
@@ -45,15 +47,31 @@ export function NavUser({
   const { isMobile } = useSidebar()
   const router = useRouter()
   const { logout: clearAuth } = useAuth()
+  const [unreadCount, setUnreadCount] = useState<number>(0)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  async function refreshUnread() {
+    try {
+      const n = await listNotifications()
+      const unread = n.filter((x) => !x.readAt).length
+      setUnreadCount(unread)
+    } catch {
+      // silent fail
+    }
+  }
+
+  useEffect(() => {
+    refreshUnread()
+  }, [])
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
+        <DropdownMenu open={menuOpen} onOpenChange={(o) => { setMenuOpen(o); if (o) refreshUnread() }}>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="relative data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarImage src={user.avatar} alt={user.name} />
@@ -64,6 +82,9 @@ export function NavUser({
                 <span className="truncate text-xs">{user.email}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
+              {unreadCount > 0 && (
+                <span className="absolute right-2 top-2 inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-red-500 ring-2 ring-background" />
+              )}
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -104,6 +125,7 @@ export function NavUser({
               <DropdownMenuItem onClick={() => router.push("/dashboard/notifications") }>
                 <Bell />
                 Notifications
+                {unreadCount > 0 && <span className="ml-auto h-2.5 w-2.5 rounded-full bg-red-500" />}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

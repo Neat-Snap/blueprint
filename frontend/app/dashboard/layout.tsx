@@ -14,6 +14,7 @@ import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -57,13 +58,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!feedback.trim()) return;
     setSending(true);
     try {
-      await fetch("/api/feedback", {
+      const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: feedback }),
       });
+      if (!res.ok) {
+        if (res.status === 429) {
+          toast.error("Daily feedback limit reached. Please try again tomorrow.");
+        } else {
+          toast.error("Could not send feedback. Please try again later or contact support@statgrad.app.");
+        }
+        return;
+      }
       setFeedback("");
       setFeedbackOpen(false);
+      toast.success("Thanks for your feedback!");
+    } catch (e) {
+      toast.error("Could not send feedback. Please try again later or contact support@statgrad.app.");
     } finally {
       setSending(false);
     }
@@ -81,6 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           headerSlot={<WorkspaceSwitcher />}
         />
         <SidebarInset>
+          <div className="rounded-t-lg overflow-hidden">
           <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b bg-background px-4">
             <SidebarTrigger />
             <div className="ml-auto flex items-center gap-2">
@@ -110,6 +123,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </header>
           <div className="p-4 md:p-6">{children}</div>
+          </div>
         </SidebarInset>
       </SidebarProvider>
     </WorkspaceProvider>
