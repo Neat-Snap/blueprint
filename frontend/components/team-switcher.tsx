@@ -54,7 +54,7 @@ export function TeamSwitcher() {
       setName("");
       setIcon("");
       toast.success("Team created");
-    } catch (e) {
+    } catch {
       toast.error("Could not create team. Please try again or contact support@statgrad.app.");
     } finally {
       setCreating(false);

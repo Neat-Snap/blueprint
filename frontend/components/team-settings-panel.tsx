@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTeam } from "@/lib/teams-context";
-import { getTeam, updateTeam, addMember, removeMember, deleteTeam, createInvitation, listInvitations, revokeInvitation, updateMemberRole, type TeamInvitation } from "@/lib/teams";
+import { getTeam, updateTeam, removeMember, deleteTeam, createInvitation, listInvitations, revokeInvitation, updateMemberRole, type TeamInvitation } from "@/lib/teams";
 import { ALLOWED_TEAM_ICONS, renderTeamIcon } from "@/lib/icons";
 import { getMe } from "@/lib/auth";
 import { Trash2, Users, Type, ShieldAlert } from "lucide-react";
@@ -26,8 +25,7 @@ export default function TeamSettingsPanel() {
   const [ownerId, setOwnerId] = useState<number | null>(null);
   const [members, setMembers] = useState<{ id: number; name: string; role: string }[]>([]);
   const [meId, setMeId] = useState<number | null>(null);
-  const [newMemberId, setNewMemberId] = useState("");
-  const [newMemberRole, setNewMemberRole] = useState<"regular" | "admin">("regular");
+  
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"regular" | "admin">("regular");
   const [inviting, setInviting] = useState(false);
@@ -79,7 +77,7 @@ export default function TeamSettingsPanel() {
       await updateTeam(current.id, nextName.trim(), nextIcon?.trim() || undefined);
       await refresh();
       toast.success("Team updated");
-    } catch (e) {
+    } catch {
       toast.error(`Could not update team. Please try again or contact ${SUPPORT_EMAIL}.`);
     } finally {
       setSaving(false);
@@ -90,17 +88,6 @@ export default function TeamSettingsPanel() {
     await saveTeam(name, icon);
   }
 
-  async function handleAddMember() {
-    if (!current) return;
-    const idNum = Number(newMemberId);
-    if (!idNum) return;
-    await addMember(current.id, idNum, newMemberRole);
-    const data = await getTeam(current.id);
-    setMembers(data.members);
-    setOwnerId(data.owner_id);
-    setNewMemberId("");
-    setNewMemberRole("regular");
-  }
 
   async function handleInvite() {
     if (!current || !inviteEmail.trim()) return;
@@ -116,7 +103,7 @@ export default function TeamSettingsPanel() {
       setInvites(filtered);
       setInviteOpen(false);
       toast.success("Invitation sent");
-    } catch (e) {
+    } catch {
       toast.error(`Could not send invitation. Please try again or contact ${SUPPORT_EMAIL}.`);
     } finally {
       setInviting(false);
@@ -129,7 +116,7 @@ export default function TeamSettingsPanel() {
       await revokeInvitation(current.id, invId);
       setInvites((prev) => prev.filter((i) => i.id !== invId));
       toast.success("Invitation revoked");
-    } catch (e) {
+    } catch {
       toast.error(`Could not revoke invitation. Please try again or contact ${SUPPORT_EMAIL}.`);
     }
   }
@@ -140,7 +127,7 @@ export default function TeamSettingsPanel() {
       await removeMember(current.id, uid);
       setMembers((m) => m.filter((x) => x.id !== uid));
       toast.success("Member removed");
-    } catch (e) {
+    } catch {
       toast.error(`Could not remove member. Please try again or contact ${SUPPORT_EMAIL}.`);
     }
   }
@@ -151,7 +138,7 @@ export default function TeamSettingsPanel() {
       await updateMemberRole(current.id, uid, role);
       setMembers((prev) => prev.map((m) => (m.id === uid ? { ...m, role } : m)));
       toast.success("Role updated");
-    } catch (e) {
+    } catch {
       toast.error(`Could not update role. Please try again or contact ${SUPPORT_EMAIL}.`);
     }
   }
@@ -169,7 +156,7 @@ export default function TeamSettingsPanel() {
         setCurrentId(null);
       }
       toast.success("Team deleted");
-    } catch (e) {
+    } catch {
       toast.error(`Could not delete team. Please try again or contact ${SUPPORT_EMAIL}.`);
     }
   }

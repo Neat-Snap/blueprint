@@ -28,7 +28,7 @@ export default function SignupPage() {
         if (!cancelled && (me?.id || me?.email)) {
           router.replace("/dashboard");
         }
-      } catch (_) {
+      } catch {
       }
     })();
     return () => { cancelled = true };

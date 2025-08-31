@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Suspense fallback={<LoadingFallback label="Loading" />}>
           <Providers>{children}</Providers>
         </Suspense>

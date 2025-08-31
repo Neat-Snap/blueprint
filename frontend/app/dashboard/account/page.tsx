@@ -81,7 +81,7 @@ export default function AccountPage() {
       const { confirmation_id } = await changeEmail(newEmail.trim());
       setEmailConfirmationId(confirmation_id);
       toast.success("Verification code sent");
-    } catch (e) {
+    } catch {
       toast.error(`Could not start email change. Please try again or contact ${SUPPORT_EMAIL}.`);
     } finally {
       setEmailChanging(false);
@@ -98,7 +98,7 @@ export default function AccountPage() {
       setEmailConfirmationId(null);
       setEmailOpen(false);
       toast.success("Email updated");
-    } catch (e) {
+    } catch {
       toast.error(`Could not confirm email. Please try again or contact ${SUPPORT_EMAIL}.`);
     } finally {
       setEmailConfirming(false);
@@ -115,7 +115,7 @@ export default function AccountPage() {
       setNewPassword("");
       setPasswordOpen(false);
       toast.success("Password changed");
-    } catch (e) {
+    } catch {
       toast.error(`Could not change password. Please try again or contact ${SUPPORT_EMAIL}.`);
     } finally {
       setPasswordChanging(false);

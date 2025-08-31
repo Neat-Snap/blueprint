@@ -26,7 +26,7 @@ export async function getMe() {
 export async function logout() {
   try {
     await api.get("/auth/logout");
-  } catch (_) {
+  } catch {
   }
 }
 

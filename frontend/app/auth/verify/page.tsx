@@ -30,7 +30,7 @@ export default function VerifyEmailPage() {
         if (!cancelled && (me?.id || me?.email)) {
           router.replace("/dashboard");
         }
-      } catch (_) {
+      } catch {
       }
     })();
     return () => { cancelled = true };

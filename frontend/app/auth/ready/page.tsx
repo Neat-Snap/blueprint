@@ -12,7 +12,7 @@ export default function AuthReadyPage() {
       try {
         await getMe();
         router.replace("/dashboard");
-      } catch (e) {
+      } catch {
         router.replace("/auth/login");
       }
     })();
