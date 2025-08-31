@@ -13,19 +13,23 @@ type MultiLogger struct {
 }
 
 func New(logFile string) (*MultiLogger, error) {
-	f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		return nil, err
-	}
-
 	consoleWriter := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
 		TimeFormat: "2006/01/02 15:04:05",
 	}
 
+	var writers []io.Writer
+	writers = append(writers, consoleWriter)
+
+	if logFile != "" {
+		if f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
+			writers = append(writers, f)
+		}
+	}
+
 	zerolog.TimeFieldFormat = time.RFC3339
 
-	multi := io.MultiWriter(consoleWriter, f)
+	multi := io.MultiWriter(writers...)
 
 	logger := zerolog.New(multi).With().Timestamp().Caller().Logger()
 

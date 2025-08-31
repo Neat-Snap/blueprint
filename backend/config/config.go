@@ -32,8 +32,9 @@ type Config struct {
 	REDIS_SECRET   string
 	SESSION_SECRET string
 
-	APP_NAME string
-	APP_URL  string
+	APP_NAME           string
+	APP_URL            string
+	BACKEND_PUBLIC_URL string
 
 	GOOGLE_CLIENT_ID     string
 	GOOGLE_CLIENT_SECRET string
@@ -113,8 +114,9 @@ func Load() Config {
 		REDIS_SECRET:   getenvStrict("REDIS_SECRET"),
 		SESSION_SECRET: getenvStrict("SESSION_SECRET"),
 
-		APP_NAME: getenvStrict("APP_NAME"),
-		APP_URL:  getenvStrict("APP_URL"),
+		APP_NAME:           getenvStrict("APP_NAME"),
+		APP_URL:            getenvStrict("APP_URL"),
+		BACKEND_PUBLIC_URL: getenvStrict("BACKEND_PUBLIC_URL"),
 
 		GOOGLE_CLIENT_ID:     getenvStrict("GOOGLE_CLIENT_ID"),
 		GOOGLE_CLIENT_SECRET: getenvStrict("GOOGLE_CLIENT_SECRET"),

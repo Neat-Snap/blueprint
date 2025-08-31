@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -18,8 +19,8 @@ import (
 func main() {
 	cfg := config.Load()
 	log, err := logger.New("main.log")
-	if err != nil {
-		log.Error("failed to create logger", "error", err)
+	if err != nil || log == nil {
+		fmt.Fprintln(os.Stderr, "failed to create logger:", err)
 		os.Exit(1)
 	}
 

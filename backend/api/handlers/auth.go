@@ -141,7 +141,7 @@ func returnDefaultPositiveResponse(w http.ResponseWriter, log logger.MultiLogger
 
 func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connection, emailClient *email.EmailClient, redisSecret string, environment string, sessionSecret string, config config.Config) *AuthAPI {
 	gob.Register(SessionUser{})
-	logger.Debug("app url from config is", "app_url", config.Addr)
+	logger.Info("app url from config is", "app_url", config.BACKEND_PUBLIC_URL)
 	cookieStore := sessions.NewCookieStore([]byte(sessionSecret))
 	cookieStore.Options = &sessions.Options{
 		Path:     "/",
@@ -156,7 +156,7 @@ func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connectio
 		google.New(
 			config.GOOGLE_CLIENT_ID,
 			config.GOOGLE_CLIENT_SECRET,
-			fmt.Sprintf("%s/auth/google/callback", config.Addr),
+			fmt.Sprintf("%s/auth/google/callback", config.BACKEND_PUBLIC_URL),
 			"openid", "email", "profile",
 		),
 	)

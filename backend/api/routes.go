@@ -41,6 +41,7 @@ func NewRouter(c RouterConfig) chi.Router {
 		5*time.Second,
 		httprate.WithKeyFuncs(httprate.KeyByIP, httprate.KeyByEndpoint),
 	))
+
 	r.Use(mw.AuthMiddlewareBuilder(c.Config.JWT_SECRET, c.Logger, c.Connection, mw.DefaultSkipper))
 
 	api := handlers.NewTestHealthAPI(c.DB, c.Logger)
