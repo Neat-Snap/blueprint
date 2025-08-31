@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +32,10 @@ export default function AccountPage() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
 
+  const fetchedOnceRef = useRef(false);
   useEffect(() => {
+    if (fetchedOnceRef.current) return;
+    fetchedOnceRef.current = true;
     (async () => {
       try {
         const me = await getMe();

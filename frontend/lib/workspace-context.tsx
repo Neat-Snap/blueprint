@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { listWorkspaces, createWorkspace as apiCreate, deleteWorkspace as apiDelete } from "./workspaces";
 
 export type CurrentWorkspace = { id: number; name: string; icon?: string } | null;
@@ -43,12 +43,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     if (currentId && !mapped.find((w) => w.id === currentId)) setCurrentId(mapped[0]?.id ?? null);
   }
 
+  const didInitialRefresh = useRef(false);
   useEffect(() => {
+    if (didInitialRefresh.current) return;
+    didInitialRefresh.current = true;
     (async () => {
       try {
         await refresh();
       } catch {
-        // handled upstream by auth guards
+
       }
     })();
   }, []);

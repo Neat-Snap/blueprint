@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { acceptInvitation } from "@/lib/workspaces";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,18 +12,22 @@ export default function InviteAcceptPage() {
   const token = search.get("token") || "";
   const [status, setStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const ranOnceRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!token) return;
+
+      if (ranOnceRef.current === token) return;
+      ranOnceRef.current = token;
       setStatus("pending");
       setError(null);
       try {
         await acceptInvitation(token);
         if (cancelled) return;
         setStatus("success");
-        // redirect to dashboard after a short delay
+
         setTimeout(() => {
           router.push("/dashboard");
         }, 1200);
@@ -36,7 +40,7 @@ export default function InviteAcceptPage() {
     return () => {
       cancelled = true;
     };
-  }, [token, router]);
+  }, [token]);
 
   const retry = async () => {
     if (!token) return;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, Settings2, MessageSquareText, HelpCircle } from "lucide-react";
@@ -25,8 +25,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const fetchedAuthRef = useRef(false);
 
   useEffect(() => {
+    if (fetchedAuthRef.current) return;
+    fetchedAuthRef.current = true;
     (async () => {
       try {
         const me = await getMe();
@@ -38,7 +41,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setAuthChecked(true);
       }
     })();
-  }, [router]);
+  }, []);
 
   const navMain: NavMainItem[] = [
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, isActive: pathname === "/dashboard" },

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,12 +42,17 @@ export default function WorkspaceSettingsPanel() {
 
   const allowedIcons = ALLOWED_WORKSPACE_ICONS as readonly string[];
 
+  const lastLoadedWorkspaceId = useRef<number | null>(null);
   useEffect(() => {
     (async () => {
       if (!current) {
         setLoading(false);
+        lastLoadedWorkspaceId.current = null;
         return;
       }
+
+      if (lastLoadedWorkspaceId.current === current.id) return;
+      lastLoadedWorkspaceId.current = current.id;
       try {
         const [me, data] = await Promise.all([getMe(), getWorkspace(current.id)]);
         setMeId(me?.id ? Number(me.id) : null);
