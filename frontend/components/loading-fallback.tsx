@@ -1,35 +1,21 @@
-// Server component fallback for Suspense (no client hooks or browser APIs)
-
 export default function LoadingFallback({ label = "Loading" }: { label?: string }) {
+  const styleObj: React.CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    zIndex: 50,
+    display: "grid",
+    placeItems: "center",
+
+    background: "#0b0b12",
+  };
   return (
-    <div id="lf"
-      aria-live="polite"
-      aria-busy="true"
-      role="status"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 50,
-        display: "grid",
-        placeItems: "center",
-        // Set explicit dark bg to avoid initial white before CSS variables apply
-        background: "#0b0b12",
-        // Provide immediate defaults for custom properties
-        // @ts-ignore - allow CSS custom properties on style
-        ['--bg' as any]: '#0b0b12',
-        // @ts-ignore
-        ['--track' as any]: '#1f2937',
-        // @ts-ignore
-        ['--bar' as any]: '#e5e7eb',
-      }}
-    >
+    <div id="lf" aria-live="polite" aria-busy="true" role="status" style={styleObj}>
       <style>
         {`
         @keyframes cascade_loadingbar { 
           0% { transform: translateX(-40%); }
           100% { transform: translateX(140%); }
         }
-        /* Derive colors from app theme variables when available, with safe fallbacks */
         #lf { 
           --bg: var(--background, #0b0b12);
           --track: var(--muted, #1f2937);

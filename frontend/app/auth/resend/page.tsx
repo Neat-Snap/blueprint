@@ -48,8 +48,9 @@ export default function ResendEmailPage() {
         if (!cancelled) {
           setConfirmationId(res.confirmation_id);
         }
-      } catch (err: any) {
-        const msg = err?.response?.data?.message || "Could not resend email";
+      } catch (err: unknown) {
+        const e = err as { response?: { data?: { message?: string } }; message?: string };
+        const msg = e.response?.data?.message || e.message || "Could not resend email";
         setError(msg);
         setShake(true);
         setTimeout(() => setShake(false), 300);
@@ -67,8 +68,9 @@ export default function ResendEmailPage() {
     try {
       await confirmEmail(confirmationId, code);
       router.push("/dashboard");
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || "Invalid or expired code";
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = e.response?.data?.message || e.message || "Invalid or expired code";
       setError(msg);
       setShake(true);
       setTimeout(() => setShake(false), 300);
@@ -82,7 +84,7 @@ export default function ResendEmailPage() {
       <Card className={`w-full max-w-sm ${shake ? "animate-shake" : ""}`}>
         <CardHeader>
           <h1 className="text-xl font-semibold">Resend verification email</h1>
-          <p className="text-sm text-muted-foreground">{email ? `We\'re sending a new code to ${email}.` : "Provide your email to resend the code."}</p>
+          <p className="text-sm text-muted-foreground">{email ? `We’re sending a new code to ${email}.` : "Provide your email to resend the code."}</p>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -116,7 +118,7 @@ export default function ResendEmailPage() {
               <Button type="submit" className="w-full" disabled={loading || !confirmationId}>
                 {loading ? "Verifying..." : "Verify"}
               </Button>
-              <p className="text-xs text-muted-foreground text-center">Didn't get it? You can try again later.</p>
+              <p className="text-xs text-muted-foreground text-center">Didn&#39;t get it? You can try again later.</p>
             </form>
           )}
         </CardContent>

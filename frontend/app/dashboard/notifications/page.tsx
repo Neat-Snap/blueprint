@@ -4,23 +4,23 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { listNotifications, markNotificationRead, type Notification } from "@/lib/notifications";
-import { acceptInvitation } from "@/lib/workspaces";
+import { acceptInvitation } from "@/lib/teams";
 import { useRouter } from "next/navigation";
-import { useWorkspace } from "@/lib/workspace-context";
+import { useTeam } from "@/lib/teams-context";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-function parseInviteData(data: string): { workspace_id?: number; workspace_name?: string; token?: string; role?: string } {
+function parseInviteData(data: string): { team_id?: number; team_name?: string; token?: string; role?: string } {
   try {
     return JSON.parse(data || "{}");
   } catch {
-    return {} as { workspace_id?: number; workspace_name?: string; token?: string; role?: string };
+    return {} as { team_id?: number; team_name?: string; token?: string; role?: string };
   }
 }
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { switchTo } = useWorkspace();
+  const { switchTo } = useTeam();
   const [loading, setLoading] = useState(true);
   const [list, setList] = useState<Notification[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -43,8 +43,8 @@ export default function NotificationsPage() {
     await acceptInvitation(payload.token);
     await markNotificationRead(n.id);
     setList((prev) => prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
-    if (payload.workspace_id) {
-      await switchTo(Number(payload.workspace_id));
+    if (payload.team_id) {
+      await switchTo(Number(payload.team_id));
       router.push(`/dashboard/settings`);
     }
   }
@@ -83,7 +83,7 @@ export default function NotificationsPage() {
           {(tab === "unread" ? unread : read).length ? (
             <ul className="divide-y">
               {(tab === "unread" ? unread : read).map((n) => {
-                const isInvite = n.type === "workspace_invite";
+                const isInvite = n.type === "team_invite";
                 const isOpen = expandedId === n.id;
                 const d = isInvite ? parseInviteData(n.data) : {};
                 return (
@@ -92,13 +92,9 @@ export default function NotificationsPage() {
                       <div className="flex items-start justify-between gap-3">
                         <CollapsibleTrigger asChild>
                           <button className="flex-1 text-left">
-                            <div className="font-medium">
-                              {isInvite ? "Workspace invitation" : (n.type || "Notification")}
-                            </div>
+                            <div className="font-medium">{isInvite ? "Team invitation" : (n.type || "Notification")}</div>
                             <div className="text-xs text-muted-foreground">
-                              {isInvite
-                                ? (d.workspace_name ? `You were invited to ${d.workspace_name}` : "You have a workspace invitation")
-                                : new Date(n.createdAt).toLocaleString()}
+                              {isInvite ? (d.team_name ? `You were invited to ${d.team_name}` : "You have a team invitation") : new Date(n.createdAt).toLocaleString()}
                             </div>
                           </button>
                         </CollapsibleTrigger>
@@ -116,7 +112,7 @@ export default function NotificationsPage() {
                           {isInvite ? (
                             <div className="space-y-2">
                               <div>
-                                <div>Workspace: <span className="font-medium">{d.workspace_name || d.workspace_id}</span></div>
+                                <div>Team: <span className="font-medium">{d.team_name || d.team_id}</span></div>
                                 <div>Role: <span className="font-medium">{d.role || "regular"}</span></div>
                               </div>
                             </div>

@@ -21,21 +21,21 @@ export default function HelpPage() {
           <CardContent>
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="item-1">
-                <AccordionTrigger>How do I create or join a workspace?</AccordionTrigger>
+                <AccordionTrigger>How do I create or join a team?</AccordionTrigger>
                 <AccordionContent>
-                  Owners can create workspaces from the Workspace switcher. To join, accept an email invitation from an owner or admin. Invitations also appear in your Notifications.
+                  Owners can create teams from the Team switcher. To join, accept an email invitation from an owner or admin. Invitations also appear in your Notifications.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="item-2">
-                <AccordionTrigger>What are the workspace roles?</AccordionTrigger>
+                <AccordionTrigger>What are the team roles?</AccordionTrigger>
                 <AccordionContent>
                   Roles are owner, admin, and regular. Owners can manage billing, deletion, and member roles. Admins manage settings and members (except roles). Regular users have standard access.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="item-3">
-                <AccordionTrigger>How can I change a member's role?</AccordionTrigger>
+                <AccordionTrigger>How can I change a member&#39;s role?</AccordionTrigger>
                 <AccordionContent>
-                  Only the workspace owner can change roles in <span className="font-medium">Settings → Members</span> using the role dropdown next to each member.
+                  Only the team owner can change roles in <span className="font-medium">Settings → Members</span> using the role dropdown next to each member.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="item-4">
@@ -60,13 +60,13 @@ export default function HelpPage() {
           </CardHeader>
           <CardContent className="text-sm">
             <ol className="list-decimal space-y-2 pl-5 text-muted-foreground">
-              <li>Create or pick a workspace from the switcher in the sidebar.</li>
+              <li>Create or pick a team from the switcher in the sidebar.</li>
               <li>Invite teammates from <span className="font-medium text-foreground">Settings → Members</span>.</li>
-              <li>Assign roles and configure workspace settings.</li>
+              <li>Assign roles and configure team settings.</li>
               <li>Explore the Dashboard to track activity and notifications.</li>
             </ol>
             <Separator className="my-4" />
-            <div className="text-foreground">Tip: Use ⌘/Ctrl + 1..9 to quickly switch workspaces.</div>
+            <div className="text-foreground">Tip: Use ⌘/Ctrl + 1..9 to quickly switch teams.</div>
           </CardContent>
         </Card>
       </div>
@@ -84,7 +84,7 @@ export default function HelpPage() {
             <Separator />
             <div>
               <div className="font-medium text-foreground">Managing members</div>
-              Owners and admins can invite/remove members. Only owners can change roles and delete the workspace.
+              Owners and admins can invite/remove members. Only owners can change roles and delete the team.
             </div>
             <Separator />
             <div>

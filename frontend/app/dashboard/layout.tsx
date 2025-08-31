@@ -9,8 +9,8 @@ import { AppSidebar, type NavMainItem, type ProjectItem, type SecondaryItem } fr
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { getMe } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { WorkspaceProvider, useWorkspace } from "@/lib/workspace-context";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { TeamProvider, useTeam } from "@/lib/teams-context";
+import { TeamSwitcher } from "@/components/team-switcher";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -41,7 +41,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setAuthChecked(true);
       }
     })();
-  }, []);
+  }, [router]);
 
   const navMain: NavMainItem[] = [
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, isActive: pathname === "/dashboard" },
@@ -75,7 +75,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setFeedback("");
       setFeedbackOpen(false);
       toast.success("Thanks for your feedback!");
-    } catch (e) {
+    } catch {
       toast.error("Could not send feedback. Please try again later or contact support@statgrad.app.");
     } finally {
       setSending(false);
@@ -83,16 +83,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <WorkspaceProvider>
+    <TeamProvider>
       <SidebarProvider>
-        <WorkspaceSwitchOverlay />
+        <TeamSwitchOverlay />
         <AppSidebar
           org={{ name: "Your App", plan: "Free", href: "/dashboard" }}
           user={{ name: user.name || user.email || "User", email: user.email || "", avatar: user.avatar }}
           navMain={navMain}
           projects={projects}
           navSecondary={navSecondary}
-          headerSlot={<WorkspaceSwitcher />}
+          headerSlot={<TeamSwitcher />}
         />
         <SidebarInset>
           <div className="rounded-t-lg overflow-hidden">
@@ -128,12 +128,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </SidebarInset>
       </SidebarProvider>
-    </WorkspaceProvider>
+    </TeamProvider>
   );
 }
 
-function WorkspaceSwitchOverlay() {
-  const { switching } = useWorkspace();
+function TeamSwitchOverlay() {
+  const { switching } = useTeam();
   if (!switching) return null;
-  return <LoadingScreen label="Switching workspace" immediate />;
+  return <LoadingScreen label="Switching team" immediate />;
 }

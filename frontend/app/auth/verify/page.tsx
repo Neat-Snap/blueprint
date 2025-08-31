@@ -57,8 +57,9 @@ export default function VerifyEmailPage() {
     try {
       await confirmEmail(confirmation_id, code);
       router.push("/dashboard");
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || "Invalid or expired code";
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = e.response?.data?.message || e.message || "Invalid or expired code";
       setError(msg);
       setShake(true);
       setTimeout(() => setShake(false), 300);

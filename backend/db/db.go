@@ -16,16 +16,16 @@ func Connect(cfg *config.Config, logger *logger.MultiLogger) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	if err := db.SetupJoinTable(&User{}, "WorkSpaces", &UserWorkspace{}); err != nil {
-		logger.Error("failed to setup join table for User and WorkSpaces", "error", err)
+	if err := db.SetupJoinTable(&User{}, "Teams", &UserTeam{}); err != nil {
+		logger.Error("failed to setup join table for User and Teams", "error", err)
 		return nil, err
 	}
-	if err := db.SetupJoinTable(&WorkSpace{}, "Users", &UserWorkspace{}); err != nil {
-		logger.Error("failed to setup join table for WorkSpace and Users", "error", err)
+	if err := db.SetupJoinTable(&Team{}, "Users", &UserTeam{}); err != nil {
+		logger.Error("failed to setup join table for Team and Users", "error", err)
 		return nil, err
 	}
 
-	if err := db.AutoMigrate(&User{}, &PasswordCredential{}, &AuthIdentity{}, &WorkSpace{}, &UserWorkspace{}, &WorkspaceInvitation{}, &Notification{}); err != nil {
+	if err := db.AutoMigrate(&User{}, &PasswordCredential{}, &AuthIdentity{}, &Team{}, &UserTeam{}, &TeamInvitation{}, &Notification{}); err != nil {
 		logger.Error("failed to auto migrate", "error", err)
 		return nil, err
 	}

@@ -2,8 +2,8 @@ import api from "./api";
 
 export type Overview = {
   user: { id: number; name: string; email: string };
-  workspaces: { id: number; name: string; role: "owner" | "admin" | "regular" }[];
-  stats: { total_workspaces: number; owner_workspaces: number };
+  teams: { id: number; name: string; role: "owner" | "admin" | "regular" }[];
+  stats: { total_teams: number; owner_teams: number };
 };
 
 export async function getOverview(): Promise<Overview> {

@@ -5,14 +5,22 @@ export type Notification = {
   createdAt: string;
   updatedAt: string;
   userId: number;
-  type: string; // e.g., "workspace_invite"
+  type: string; // e.g., "team_invite"
   data: string; // JSON string
   readAt?: string | null;
 };
 
-type AnyRec = Record<string, any>;
+type BackendRec = {
+  id?: number; ID?: number;
+  created_at?: string; CreatedAt?: string;
+  updated_at?: string; UpdatedAt?: string;
+  user_id?: number; UserID?: number;
+  type?: string; Type?: string;
+  data?: string; Data?: string;
+  read_at?: string | null; ReadAt?: string | null;
+};
 
-function normalize(rec: AnyRec): Notification {
+function normalize(rec: BackendRec): Notification {
   return {
     id: rec.id ?? rec.ID,
     createdAt: rec.created_at ?? rec.CreatedAt,
@@ -25,7 +33,7 @@ function normalize(rec: AnyRec): Notification {
 }
 
 export async function listNotifications(): Promise<Notification[]> {
-  const { data } = await api.get<AnyRec[]>("/notifications");
+  const { data } = await api.get<BackendRec[]>("/notifications");
   return Array.isArray(data) ? data.map(normalize) : [];
 }
 

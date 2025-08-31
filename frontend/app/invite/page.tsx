@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { acceptInvitation } from "@/lib/workspaces";
+import { acceptInvitation } from "@/lib/teams";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -31,16 +31,17 @@ export default function InviteAcceptPage() {
         setTimeout(() => {
           router.push("/dashboard");
         }, 1200);
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const err = e as { response?: { data?: { error?: string } }; message?: string };
         if (cancelled) return;
         setStatus("error");
-        setError(e?.response?.data?.error || e?.message || "Failed to accept invitation");
+        setError(err.response?.data?.error || err.message || "Failed to accept invitation");
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, router]);
 
   const retry = async () => {
     if (!token) return;
@@ -50,9 +51,10 @@ export default function InviteAcceptPage() {
       await acceptInvitation(token);
       setStatus("success");
       setTimeout(() => router.push("/dashboard"), 1200);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } }; message?: string };
       setStatus("error");
-      setError(e?.response?.data?.error || e?.message || "Failed to accept invitation");
+      setError(err.response?.data?.error || err.message || "Failed to accept invitation");
     }
   };
 

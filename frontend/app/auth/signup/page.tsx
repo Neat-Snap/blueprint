@@ -41,9 +41,10 @@ export default function SignupPage() {
     try {
       const res = await signup(email, password);
       router.push(`/auth/verify?cid=${encodeURIComponent(res.confirmation_id)}&email=${encodeURIComponent(email)}`);
-    } catch (err: any) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message || "Could not register";
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { message?: string } }; message?: string };
+      const status = e.response?.status;
+      const msg = e.response?.data?.message || e.message || "Could not register";
       setError(msg);
       if (status === 409 && /google/i.test(msg)) {
         setHighlightGoogle(true);

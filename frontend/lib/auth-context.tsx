@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { jwtDecode } from "jwt-decode";
 import { getToken, setToken } from "./token";
 
-type Decoded = { sub?: string; email?: string; [k: string]: any };
+type Decoded = { sub?: string; email?: string; [k: string]: unknown };
 
 interface AuthState {
   token: string | null;

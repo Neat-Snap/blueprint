@@ -13,7 +13,7 @@ import {
   Database,
 } from "lucide-react";
 
-export const ALLOWED_WORKSPACE_ICONS = [
+export const ALLOWED_TEAM_ICONS = [
   "briefcase",
   "building",
   "bolt",
@@ -27,7 +27,7 @@ export const ALLOWED_WORKSPACE_ICONS = [
   "database",
 ] as const;
 
-const map: Record<(typeof ALLOWED_WORKSPACE_ICONS)[number], React.ComponentType<{ className?: string }>> = {
+const map: Record<(typeof ALLOWED_TEAM_ICONS)[number], React.ComponentType<{ className?: string }>> = {
   briefcase: Briefcase,
   building: Building2,
   bolt: Bolt,
@@ -41,10 +41,10 @@ const map: Record<(typeof ALLOWED_WORKSPACE_ICONS)[number], React.ComponentType<
   database: Database,
 };
 
-export function renderWorkspaceIcon(key?: string, className?: string): React.ReactNode {
+export function renderTeamIcon(key?: string, className?: string): React.ReactNode {
   if (!key) return null;
-  const k = key.toLowerCase() as (typeof ALLOWED_WORKSPACE_ICONS)[number];
-  const Cmp = (map as any)[k] as React.ComponentType<{ className?: string }> | undefined;
+  const k = key.toLowerCase() as (typeof ALLOWED_TEAM_ICONS)[number];
+  const Cmp = map[k];
   if (!Cmp) return null;
   return React.createElement(Cmp, { className });
 }

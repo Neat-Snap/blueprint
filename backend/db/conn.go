@@ -7,21 +7,21 @@ import (
 )
 
 type Connection struct {
-	DBConn       *gorm.DB
-	Users        UsersRepo
-	Workspaces   WorkspacesRepo
-	Auth         AuthRepo
-	Invitations  InvitationsRepo
+	DBConn        *gorm.DB
+	Users         UsersRepo
+	Teams         TeamsRepo
+	Auth          AuthRepo
+	Invitations   InvitationsRepo
 	Notifications NotificationsRepo
 }
 
 func NewConnection(db *gorm.DB) *Connection {
 	return &Connection{
-		DBConn:       db,
-		Users:        &usersRepo{db: db},
-		Workspaces:   &workspacesRepo{db: db},
-		Auth:         &authRepo{db: db},
-		Invitations:  &invitationsRepo{db: db},
+		DBConn:        db,
+		Users:         &usersRepo{db: db},
+		Teams:         &teamsRepo{db: db},
+		Auth:          &authRepo{db: db},
+		Invitations:   &invitationsRepo{db: db},
 		Notifications: &notificationsRepo{db: db},
 	}
 }
@@ -29,11 +29,11 @@ func NewConnection(db *gorm.DB) *Connection {
 func (c *Connection) WithTx(ctx context.Context, fn func(tx *Connection) error) error {
 	return c.DBConn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		localConn := &Connection{
-			DBConn:       tx,
-			Users:        &usersRepo{db: tx},
-			Workspaces:   &workspacesRepo{db: tx},
-			Auth:         &authRepo{db: tx},
-			Invitations:  &invitationsRepo{db: tx},
+			DBConn:        tx,
+			Users:         &usersRepo{db: tx},
+			Teams:         &teamsRepo{db: tx},
+			Auth:          &authRepo{db: tx},
+			Invitations:   &invitationsRepo{db: tx},
 			Notifications: &notificationsRepo{db: tx},
 		}
 		return fn(localConn)
@@ -48,17 +48,17 @@ type UsersRepo interface {
 	SoftDelete(ctx context.Context, id uint) error
 }
 
-type WorkspacesRepo interface {
-	Create(ctx context.Context, w *WorkSpace) error
-	ByID(ctx context.Context, id uint) (*WorkSpace, error)
-	AddMember(ctx context.Context, workspaceID, userID uint, role string) error
-	RemoveMember(ctx context.Context, workspaceID, userID uint) error
-	ListForUser(ctx context.Context, userID uint) ([]WorkSpace, error)
-	ReassignOwner(ctx context.Context, workspaceID, newOwnerID uint) error
-	GetUserRole(ctx context.Context, workspaceID, userID uint) (string, error)
-	RolesForWorkspace(ctx context.Context, workspaceID uint) (map[uint]string, error)
-	Update(ctx context.Context, w *WorkSpace) error
-	Delete(ctx context.Context, w *WorkSpace) error
+type TeamsRepo interface {
+	Create(ctx context.Context, w *Team) error
+	ByID(ctx context.Context, id uint) (*Team, error)
+	AddMember(ctx context.Context, teamID, userID uint, role string) error
+	RemoveMember(ctx context.Context, teamID, userID uint) error
+	ListForUser(ctx context.Context, userID uint) ([]Team, error)
+	ReassignOwner(ctx context.Context, teamID, newOwnerID uint) error
+	GetUserRole(ctx context.Context, teamID, userID uint) (string, error)
+	RolesForTeam(ctx context.Context, teamID uint) (map[uint]string, error)
+	Update(ctx context.Context, w *Team) error
+	Delete(ctx context.Context, w *Team) error
 }
 
 type AuthRepo interface {
@@ -71,10 +71,10 @@ type AuthRepo interface {
 }
 
 type InvitationsRepo interface {
-	Create(ctx context.Context, inv *WorkspaceInvitation) error
-	ByToken(ctx context.Context, token string) (*WorkspaceInvitation, error)
+	Create(ctx context.Context, inv *TeamInvitation) error
+	ByToken(ctx context.Context, token string) (*TeamInvitation, error)
 	MarkAccepted(ctx context.Context, id uint) error
-	ListByWorkspace(ctx context.Context, wsID uint) ([]WorkspaceInvitation, error)
+	ListByTeam(ctx context.Context, teamID uint) ([]TeamInvitation, error)
 	Revoke(ctx context.Context, id uint) error
 }
 

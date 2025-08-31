@@ -43,9 +43,10 @@ export default function LoginPage() {
     try {
       await login(email, password);
       router.push("/dashboard");
-    } catch (err: any) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message || "Invalid email or password";
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { message?: string } }; message?: string };
+      const status = e.response?.status;
+      const msg = e.response?.data?.message || e.message || "Invalid email or password";
       setError(msg);
       if (status === 409 || /google/i.test(msg)) {
         setHighlightGoogle(true);

@@ -8,16 +8,16 @@ export function LoadingScreen({ label, immediate = false }: { label?: string; im
   const [visible, setVisible] = React.useState(immediate);
 
   React.useEffect(() => {
-    let clearers: Array<number | ReturnType<typeof setInterval>> = [];
+    const clearers: number[] = [];
 
     const startProgress = () => {
       let v = 8;
       setValue(v);
-      const id = setInterval(() => {
+      const id = window.setInterval(() => {
         v = v + Math.max(1, Math.floor((90 - v) / 8));
         if (v >= 90) {
           v = 90;
-          clearInterval(id);
+          window.clearInterval(id);
         }
         setValue(v);
       }, 120);
@@ -39,10 +39,8 @@ export function LoadingScreen({ label, immediate = false }: { label?: string; im
     return () => {
       for (const c of clearers) {
         // c may be timeout id or interval id
-        // @ts-ignore
-        clearTimeout(c);
-        // @ts-ignore
-        clearInterval(c);
+        window.clearTimeout(c);
+        window.clearInterval(c);
       }
     };
   }, [immediate]);

@@ -10,15 +10,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter as DialogModalFo
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useWorkspace } from "@/lib/workspace-context";
-import { getWorkspace, updateWorkspaceName, addMember, removeMember, deleteWorkspace, createInvitation, listInvitations, revokeInvitation, updateMemberRole, type WorkspaceInvitation } from "@/lib/workspaces";
-import { ALLOWED_WORKSPACE_ICONS, renderWorkspaceIcon } from "@/lib/icons";
+import { useTeam } from "@/lib/teams-context";
+import { getTeam, updateTeam, addMember, removeMember, deleteTeam, createInvitation, listInvitations, revokeInvitation, updateMemberRole, type TeamInvitation } from "@/lib/teams";
+import { ALLOWED_TEAM_ICONS, renderTeamIcon } from "@/lib/icons";
 import { getMe } from "@/lib/auth";
 import { Trash2, Users, Type, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
-export default function WorkspaceSettingsPanel() {
-  const { current, refresh, setCurrentId, switchTo, all } = useWorkspace();
+export default function TeamSettingsPanel() {
+  const { current, refresh, setCurrentId, switchTo, all } = useTeam();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
@@ -31,7 +31,7 @@ export default function WorkspaceSettingsPanel() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"regular" | "admin">("regular");
   const [inviting, setInviting] = useState(false);
-  const [invites, setInvites] = useState<WorkspaceInvitation[]>([]);
+  const [invites, setInvites] = useState<TeamInvitation[]>([]);
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<{ open: boolean; userId?: number }>({ open: false });
@@ -40,21 +40,21 @@ export default function WorkspaceSettingsPanel() {
   const [iconOpen, setIconOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
 
-  const allowedIcons = ALLOWED_WORKSPACE_ICONS as readonly string[];
+  const allowedIcons = ALLOWED_TEAM_ICONS as readonly string[];
 
-  const lastLoadedWorkspaceId = useRef<number | null>(null);
+  const lastLoadedTeamId = useRef<number | null>(null);
   useEffect(() => {
     (async () => {
       if (!current) {
         setLoading(false);
-        lastLoadedWorkspaceId.current = null;
+        lastLoadedTeamId.current = null;
         return;
       }
 
-      if (lastLoadedWorkspaceId.current === current.id) return;
-      lastLoadedWorkspaceId.current = current.id;
+      if (lastLoadedTeamId.current === current.id) return;
+      lastLoadedTeamId.current = current.id;
       try {
-        const [me, data] = await Promise.all([getMe(), getWorkspace(current.id)]);
+        const [me, data] = await Promise.all([getMe(), getTeam(current.id)]);
         setMeId(me?.id ? Number(me.id) : null);
         setName(data.name);
         setIcon(data.icon || "");
@@ -72,22 +72,22 @@ export default function WorkspaceSettingsPanel() {
 
   const SUPPORT_EMAIL = "support@statgrad.app";
 
-  async function saveWorkspace(nextName: string, nextIcon?: string) {
+  async function saveTeam(nextName: string, nextIcon?: string) {
     if (!current || !nextName.trim()) return;
     setSaving(true);
     try {
-      await updateWorkspaceName(current.id, nextName.trim(), nextIcon?.trim() || undefined);
+      await updateTeam(current.id, nextName.trim(), nextIcon?.trim() || undefined);
       await refresh();
-      toast.success("Workspace updated");
+      toast.success("Team updated");
     } catch (e) {
-      toast.error(`Could not update workspace. Please try again or contact ${SUPPORT_EMAIL}.`);
+      toast.error(`Could not update team. Please try again or contact ${SUPPORT_EMAIL}.`);
     } finally {
       setSaving(false);
     }
   }
 
   async function handleRename() {
-    await saveWorkspace(name, icon);
+    await saveTeam(name, icon);
   }
 
   async function handleAddMember() {
@@ -95,7 +95,7 @@ export default function WorkspaceSettingsPanel() {
     const idNum = Number(newMemberId);
     if (!idNum) return;
     await addMember(current.id, idNum, newMemberRole);
-    const data = await getWorkspace(current.id);
+    const data = await getTeam(current.id);
     setMembers(data.members);
     setOwnerId(data.owner_id);
     setNewMemberId("");
@@ -145,8 +145,6 @@ export default function WorkspaceSettingsPanel() {
     }
   }
 
-  // owner reassignment removed
-
   async function handleChangeRole(uid: number, role: "regular" | "admin") {
     if (!current) return;
     try {
@@ -161,23 +159,23 @@ export default function WorkspaceSettingsPanel() {
   async function handleDelete() {
     if (!current) return;
     try {
-      await deleteWorkspace(current.id);
+      await deleteTeam(current.id);
 
       await refresh();
-      const remaining = all.filter((w) => w.id !== current.id);
+      const remaining = all.filter((w: { id: number; name: string; icon?: string }) => w.id !== current.id);
       if (remaining[0]?.id) {
         await switchTo(remaining[0].id);
       } else {
         setCurrentId(null);
       }
-      toast.success("Workspace deleted");
+      toast.success("Team deleted");
     } catch (e) {
-      toast.error(`Could not delete workspace. Please try again or contact ${SUPPORT_EMAIL}.`);
+      toast.error(`Could not delete team. Please try again or contact ${SUPPORT_EMAIL}.`);
     }
   }
 
   if (loading) return null;
-  if (!current) return <p className="text-sm text-muted-foreground">Select a workspace from the header to manage settings.</p>;
+  if (!current) return <p className="text-sm text-muted-foreground">Select a team from the header to manage settings.</p>;
 
   const myRole = meId ? members.find((m) => m.id === meId)?.role : undefined;
   const isOwner = ownerId != null && meId != null && ownerId === meId;
@@ -197,8 +195,8 @@ export default function WorkspaceSettingsPanel() {
             <div className="flex items-center gap-3">
               <Type className="h-4 w-4 text-muted-foreground" />
               <div>
-                <div className="text-sm font-medium">Workspace name</div>
-                <div className="text-xs text-muted-foreground">Rename this workspace.</div>
+                <div className="text-sm font-medium">Team name</div>
+                <div className="text-xs text-muted-foreground">Rename this team.</div>
               </div>
             </div>
             <Button size="sm" onClick={() => setRenameOpen(true)} disabled={!isManager}>Rename</Button>
@@ -206,11 +204,11 @@ export default function WorkspaceSettingsPanel() {
           <div className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50">
             <div className="flex items-center gap-3">
               {icon ? (
-                renderWorkspaceIcon(icon, "h-4 w-4")
+                renderTeamIcon(icon, "h-4 w-4")
               ) : (
                 <Type className="h-4 w-4 text-muted-foreground" />
               )}
-              <div className="text-sm font-medium">Workspace icon</div>
+              <div className="text-sm font-medium">Team icon</div>
             </div>
             <Button size="sm" onClick={() => setIconOpen(true)} disabled={!isManager}>Change</Button>
           </div>
@@ -281,7 +279,7 @@ export default function WorkspaceSettingsPanel() {
         <TabsContent value="danger" className="space-y-2">
           <div className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50">
             <div>
-              <div className="text-sm font-medium">Delete workspace</div>
+              <div className="text-sm font-medium">Delete team</div>
               <div className="text-xs text-muted-foreground">This action cannot be undone.</div>
             </div>
             <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)} disabled={!isOwner}><Trash2 className="mr-1 h-4 w-4" /> Delete</Button>
@@ -293,8 +291,8 @@ export default function WorkspaceSettingsPanel() {
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename workspace</DialogTitle>
-            <DialogDescription>Update the workspace name.</DialogDescription>
+            <DialogTitle>Rename team</DialogTitle>
+            <DialogDescription>Update the team name.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-2">
@@ -314,7 +312,7 @@ export default function WorkspaceSettingsPanel() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Select icon</DialogTitle>
-            <DialogDescription>Choose an icon for this workspace.</DialogDescription>
+            <DialogDescription>Choose an icon for this team.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
@@ -322,11 +320,11 @@ export default function WorkspaceSettingsPanel() {
                 <button
                   key={ic}
                   type="button"
-                  onClick={async () => { setIcon(ic); await saveWorkspace(name, ic); setIconOpen(false); }}
+                  onClick={async () => { setIcon(ic); await saveTeam(name, ic); setIconOpen(false); }}
                   className={`flex h-10 w-10 items-center justify-center rounded border transition-colors ${icon === ic ? "border-ring bg-accent" : "hover:bg-muted"}`}
                   aria-label={ic}
                 >
-                  {renderWorkspaceIcon(ic, "size-5")}
+                  {renderTeamIcon(ic, "size-5")}
                 </button>
               ))}
             </div>
@@ -355,14 +353,14 @@ export default function WorkspaceSettingsPanel() {
                       <RadioGroupItem value="regular" />
                       <div>
                         <div className="text-sm font-medium">Regular</div>
-                        <div className="text-xs text-muted-foreground">Can view and edit workspace content. Cannot manage members or delete workspace.</div>
+                        <div className="text-xs text-muted-foreground">Can view and edit team content. Cannot manage members or delete team.</div>
                       </div>
                     </label>
                     <label className="flex items-start gap-3 rounded-md border p-2 transition-colors hover:bg-muted/50">
                       <RadioGroupItem value="admin" />
                       <div>
                         <div className="text-sm font-medium">Admin</div>
-                        <div className="text-xs text-muted-foreground">Can manage members and invitations, and edit workspace settings.</div>
+                        <div className="text-xs text-muted-foreground">Can manage members and invitations, and edit team settings.</div>
                       </div>
                     </label>
                   </RadioGroup>
@@ -381,8 +379,8 @@ export default function WorkspaceSettingsPanel() {
       <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete workspace?</DialogTitle>
-            <DialogDescription>This action cannot be undone. All data for this workspace will be permanently removed.</DialogDescription>
+            <DialogTitle>Delete team?</DialogTitle>
+            <DialogDescription>This action cannot be undone. All data for this team will be permanently removed.</DialogDescription>
           </DialogHeader>
           <DialogModalFooter>
             <Button variant="outline" onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
@@ -396,7 +394,7 @@ export default function WorkspaceSettingsPanel() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Remove member?</DialogTitle>
-            <DialogDescription>This user will lose access to this workspace.</DialogDescription>
+            <DialogDescription>This user will lose access to this team.</DialogDescription>
           </DialogHeader>
           <DialogModalFooter>
             <Button variant="outline" onClick={() => setConfirmRemove({ open: false })}>Cancel</Button>

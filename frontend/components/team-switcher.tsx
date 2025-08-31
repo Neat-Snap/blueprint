@@ -4,16 +4,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ChevronsUpDown, Plus } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
-import { useWorkspace } from "@/lib/workspace-context";
+import { useTeam } from "@/lib/teams-context";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ALLOWED_WORKSPACE_ICONS, renderWorkspaceIcon } from "@/lib/icons";
+import { ALLOWED_TEAM_ICONS, renderTeamIcon } from "@/lib/icons";
 import { toast } from "sonner";
 
-export function WorkspaceSwitcher() {
-  const { current, all, switchTo, createWorkspace } = useWorkspace();
+export function TeamSwitcher() {
+  const { current, all, switchTo, createTeam } = useTeam();
   const { isMobile } = useSidebar();
   const [openCreate, setOpenCreate] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -49,13 +49,13 @@ export function WorkspaceSwitcher() {
     if (!name.trim()) return;
     setCreating(true);
     try {
-      await createWorkspace(name.trim(), icon.trim() || undefined);
+      await createTeam(name.trim(), icon.trim() || undefined);
       setOpenCreate(false);
       setName("");
       setIcon("");
-      toast.success("Workspace created");
+      toast.success("Team created");
     } catch (e) {
-      toast.error("Could not create workspace. Please try again or contact support@statgrad.app.");
+      toast.error("Could not create team. Please try again or contact support@statgrad.app.");
     } finally {
       setCreating(false);
     }
@@ -73,14 +73,14 @@ export function WorkspaceSwitcher() {
               >
                 <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
                   {current?.icon ? (
-                    renderWorkspaceIcon(current.icon, "size-4") || <span className="text-xs font-medium">{currentBadge}</span>
+                    renderTeamIcon(current.icon, "size-4") || <span className="text-xs font-medium">{currentBadge}</span>
                   ) : (
                     <span className="text-xs font-medium">{currentBadge}</span>
                   )}
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{current?.name || "Select workspace"}</span>
-                  <span className="truncate text-xs">{all.length === 1 ? "Free" : `${all.length} workspaces`}</span>
+                  <span className="truncate font-medium">{current?.name || "Select team"}</span>
+                  <span className="truncate text-xs">{all.length === 1 ? "Free" : `${all.length} teams`}</span>
                 </div>
                 <ChevronsUpDown className="ml-auto" />
               </SidebarMenuButton>
@@ -92,12 +92,12 @@ export function WorkspaceSwitcher() {
               sideOffset={4}
             >
               <DropdownMenuLabel className="text-muted-foreground text-xs">Teams</DropdownMenuLabel>
-              {all.map((w, index) => {
+              {all.map((w: { id: number; name: string; icon?: string }, index: number) => {
                 const badge = (w.icon && w.icon.trim()) ? w.icon.trim() : (w.name?.slice(0, 2).toUpperCase());
                 return (
                   <DropdownMenuItem key={w.id} onClick={() => switchTo(w.id)} className="gap-2 p-2">
                     <div className="flex size-6 items-center justify-center rounded-md border">
-                      {w.icon ? (renderWorkspaceIcon(w.icon, "size-4") || <span className="text-[11px] font-medium">{badge}</span>) : (
+                      {w.icon ? (renderTeamIcon(w.icon, "size-4") || <span className="text-[11px] font-medium">{badge}</span>) : (
                         <span className="text-[11px] font-medium">{badge}</span>
                       )}
                     </div>
@@ -118,11 +118,11 @@ export function WorkspaceSwitcher() {
         </SidebarMenuItem>
       </SidebarMenu>
 
-      {/* Create Workspace Dialog */}
+      {/* Create Team Dialog */}
       <Dialog open={openCreate} onOpenChange={setOpenCreate}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create workspace</DialogTitle>
+            <DialogTitle>Create team</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-2">
@@ -135,14 +135,14 @@ export function WorkspaceSwitcher() {
                   aria-label="Choose icon"
                 >
                   {icon ? (
-                    renderWorkspaceIcon(icon, "size-4")
+                    renderTeamIcon(icon, "size-4")
                   ) : (
                     <span className="text-[11px] font-medium">
-                      {(name.trim() ? name.trim().slice(0, 2) : "WS").toUpperCase()}
+                      {(name.trim() ? name.trim().slice(0, 2) : "TM").toUpperCase()}
                     </span>
                   )}
                 </button>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="My workspace" />
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="My team" />
               </div>
             </div>
             <DialogFooter>
@@ -160,7 +160,7 @@ export function WorkspaceSwitcher() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
-              {ALLOWED_WORKSPACE_ICONS.map((ic) => (
+              {ALLOWED_TEAM_ICONS.map((ic: string) => (
                 <button
                   key={ic}
                   type="button"
@@ -168,7 +168,7 @@ export function WorkspaceSwitcher() {
                   className={`flex h-10 w-10 items-center justify-center rounded border transition-colors ${icon === ic ? "border-ring bg-accent" : "hover:bg-muted"}`}
                   aria-label={ic}
                 >
-                  {renderWorkspaceIcon(ic, "size-5")}
+                  {renderTeamIcon(ic, "size-5")}
                 </button>
               ))}
             </div>

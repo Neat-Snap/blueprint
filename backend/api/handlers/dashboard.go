@@ -24,33 +24,33 @@ func (h *HandlersAPI) OverViewEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 	userID := userObj.ID
 
-	workspaces, err := h.Connection.Workspaces.ListForUser(r.Context(), userID)
+	teams, err := h.Connection.Teams.ListForUser(r.Context(), userID)
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspaces", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get teams", http.StatusInternalServerError)
 		return
 	}
 
 	var ownded int
-	var workspaceResp []any
-	for _, workspace := range workspaces {
+	var teamResp []any
+	for _, team := range teams {
 		var role string
-		if workspace.OwnerID == userID {
+		if team.OwnerID == userID {
 			role = "owner"
 			ownded += 1
 		} else {
 			role = "member"
 		}
 
-		workspaceResp = append(workspaceResp, map[string]any{
-			"id":   workspace.ID,
-			"name": workspace.Name,
+		teamResp = append(teamResp, map[string]any{
+			"id":   team.ID,
+			"name": team.Name,
 			"role": role,
 		})
 	}
 
 	statsResp := map[string]any{
-		"total_workspaces": len(workspaces),
-		"owner_workspaces": ownded,
+		"total_teams": len(teams),
+		"owner_teams": ownded,
 	}
 
 	userResp := utils.UserConciseResponse{
@@ -60,9 +60,9 @@ func (h *HandlersAPI) OverViewEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	finalResponse := map[string]any{
-		"stats":      statsResp,
-		"user":       userResp,
-		"workspaces": workspaceResp,
+		"stats": statsResp,
+		"user":  userResp,
+		"teams": teamResp,
 	}
 
 	w.WriteHeader(http.StatusOK)

@@ -1,47 +1,47 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { listWorkspaces, createWorkspace as apiCreate, deleteWorkspace as apiDelete } from "./workspaces";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { listTeams, createTeam as apiCreate, deleteTeam as apiDelete } from "./teams";
 
-export type CurrentWorkspace = { id: number; name: string; icon?: string } | null;
+export type CurrentTeam = { id: number; name: string; icon?: string } | null;
 
 type Ctx = {
-  current: CurrentWorkspace;
+  current: CurrentTeam;
   setCurrentId: (id: number | null) => void;
   switchTo: (id: number) => Promise<void>;
   switching: boolean;
   all: { id: number; name: string; icon?: string }[];
   refresh: () => Promise<void>;
-  createWorkspace: (name: string, icon?: string) => Promise<void>;
-  deleteWorkspace: (id: number) => Promise<void>;
+  createTeam: (name: string, icon?: string) => Promise<void>;
+  deleteTeam: (id: number) => Promise<void>;
 };
 
-const WorkspaceCtx = createContext<Ctx | undefined>(undefined);
+const TeamCtx = createContext<Ctx | undefined>(undefined);
 
-export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
+export function TeamProvider({ children }: { children: React.ReactNode }) {
   const [all, setAll] = useState<{ id: number; name: string; icon?: string }[]>([]);
   const [currentId, setCurrentId] = useState<number | null>(null);
   const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? window.localStorage.getItem("currentWorkspaceId") : null;
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("currentTeamId") : null;
     if (saved) setCurrentId(Number(saved));
   }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      if (currentId) window.localStorage.setItem("currentWorkspaceId", String(currentId));
-      else window.localStorage.removeItem("currentWorkspaceId");
+      if (currentId) window.localStorage.setItem("currentTeamId", String(currentId));
+      else window.localStorage.removeItem("currentTeamId");
     }
   }, [currentId]);
 
-  async function refresh() {
-    const items = await listWorkspaces();
-    const mapped = items.map((w) => ({ id: w.id, name: w.name, icon: w.icon }));
+  const refresh = useCallback(async () => {
+    const items = await listTeams();
+    const mapped = items.map((w: { id: number; name: string; icon?: string }) => ({ id: w.id, name: w.name, icon: w.icon }));
     setAll(mapped);
     if (!currentId && mapped.length) setCurrentId(mapped[0].id);
-    if (currentId && !mapped.find((w) => w.id === currentId)) setCurrentId(mapped[0]?.id ?? null);
-  }
+    if (currentId && !mapped.find((w: { id: number }) => w.id === currentId)) setCurrentId(mapped[0]?.id ?? null);
+  }, [currentId]);
 
   const didInitialRefresh = useRef(false);
   useEffect(() => {
@@ -54,20 +54,20 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
       }
     })();
-  }, []);
+  }, [refresh]);
 
-  async function createWorkspace(name: string, icon?: string) {
+  async function createTeam(name: string, icon?: string) {
     const created = await apiCreate(name, icon);
     await refresh();
     setCurrentId(created.id);
   }
 
-  async function deleteWorkspace(id: number) {
+  async function deleteTeam(id: number) {
     await apiDelete(id);
     await refresh();
   }
 
-  const current = useMemo<CurrentWorkspace>(() => {
+  const current = useMemo<CurrentTeam>(() => {
     if (!currentId) return null;
     const w = all.find((x) => x.id === currentId) || null;
     return w;
@@ -87,15 +87,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     switching,
     all,
     refresh,
-    createWorkspace,
-    deleteWorkspace,
+    createTeam,
+    deleteTeam,
   };
 
-  return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
+  return <TeamCtx.Provider value={value}>{children}</TeamCtx.Provider>;
 }
 
-export function useWorkspace() {
-  const ctx = useContext(WorkspaceCtx);
-  if (!ctx) throw new Error("useWorkspace must be used within WorkspaceProvider");
+export function useTeam() {
+  const ctx = useContext(TeamCtx);
+  if (!ctx) throw new Error("useTeam must be used within TeamProvider");
   return ctx;
 }

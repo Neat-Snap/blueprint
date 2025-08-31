@@ -2,32 +2,32 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useWorkspace } from "@/lib/workspace-context";
-import { getWorkspaceOverview, type WorkspaceOverview } from "@/lib/workspaces";
+import { useTeam } from "@/lib/teams-context";
+import { getTeamOverview, type TeamOverview } from "@/lib/teams";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { listInvitations } from "@/lib/workspaces";
+import { listInvitations } from "@/lib/teams";
 
 export default function DashboardPage() {
-  const { current } = useWorkspace();
+  const { current } = useTeam();
   const [loading, setLoading] = useState(true);
-  const [wsOverview, setWsOverview] = useState<WorkspaceOverview | null>(null);
+  const [teamOverview, setTeamOverview] = useState<TeamOverview | null>(null);
   const [pendingInvites, setPendingInvites] = useState<number>(0);
 
   useEffect(() => {
     (async () => {
       if (!current) {
-        setWsOverview(null);
+        setTeamOverview(null);
         setPendingInvites(0);
         setLoading(false);
         return;
       }
       try {
-        const data = await getWorkspaceOverview(current.id);
-        setWsOverview(data);
+        const data = await getTeamOverview(current.id);
+        setTeamOverview(data);
         const invites = await listInvitations(current.id);
         const now = Date.now();
-        const count = invites.filter((i: any) => i.status === "pending" && new Date(i.expires_at).getTime() > now).length;
+        const count = invites.filter((i) => i.status === "pending" && new Date(i.expires_at).getTime() > now).length;
         setPendingInvites(count);
       } finally {
         setLoading(false);
@@ -40,11 +40,11 @@ export default function DashboardPage() {
   if (!current) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold">No workspace selected</h1>
-        <p className="text-sm text-muted-foreground">Select or create a workspace to see its overview.</p>
+        <h1 className="text-2xl font-bold">No team selected</h1>
+        <p className="text-sm text-muted-foreground">Select or create a team to see its overview.</p>
         <div>
           <Button asChild>
-            <Link href="/dashboard/workspaces">Create workspace</Link>
+            <Link href="/dashboard/settings">Create team</Link>
           </Button>
         </div>
       </div>
@@ -54,8 +54,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">{wsOverview?.workspace.name || "Workspace"} overview</h1>
-        <p className="text-muted-foreground">Key metrics for this workspace.</p>
+        <h1 className="text-2xl font-bold">{teamOverview?.team.name || "Team"} overview</h1>
+        <p className="text-muted-foreground">Key metrics for this team.</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -64,7 +64,7 @@ export default function DashboardPage() {
             <CardTitle>Members</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold">{wsOverview?.stats.members_count ?? 0}</div>
+            <div className="text-3xl font-semibold">{teamOverview?.stats.members_count ?? 0}</div>
           </CardContent>
         </Card>
         {pendingInvites > 0 && (
@@ -80,7 +80,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         )}
-        {/* Add more workspace-specific cards here as needed */}
       </div>
     </div>
   );

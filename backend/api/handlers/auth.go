@@ -234,26 +234,25 @@ func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		// Ensure a default workspace exists for this user
-		existing, err := tx.Workspaces.ListForUser(r.Context(), u.ID)
+		existing, err := tx.Teams.ListForUser(r.Context(), u.ID)
 		if err != nil {
 			return err
 		}
 		if len(existing) == 0 {
-			name := "My Workspace"
+			name := "My team"
 			if u.Name != nil && *u.Name != "" {
-				name = *u.Name + "'s Workspace"
+				name = *u.Name + "'s team"
 			}
-			ws := &db.WorkSpace{
+			ws := &db.Team{
 				Name:    name,
 				OwnerID: u.ID,
 				Owner:   *u,
 				Users:   []db.User{*u},
 			}
-			if err := tx.Workspaces.Create(r.Context(), ws); err != nil {
+			if err := tx.Teams.Create(r.Context(), ws); err != nil {
 				return err
 			}
-			_ = tx.Workspaces.AddMember(r.Context(), ws.ID, u.ID, "owner")
+			_ = tx.Teams.AddMember(r.Context(), ws.ID, u.ID, "owner")
 		}
 		return nil
 	})
@@ -433,6 +432,33 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 		a.logger.Error("failed to complete auth", "error", err)
 		http.Error(w, "auth failed: "+err.Error(), http.StatusUnauthorized)
 		return
+	}
+
+	if terr := a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
+		existing, err := tx.Teams.ListForUser(r.Context(), signedInUser.ID)
+		if err != nil {
+			return err
+		}
+		if len(existing) > 0 {
+			return nil
+		}
+		name := "My team"
+		if signedInUser.Name != nil && *signedInUser.Name != "" {
+			name = *signedInUser.Name + "'s team"
+		}
+		ws := &db.Team{
+			Name:    name,
+			OwnerID: signedInUser.ID,
+			Owner:   *signedInUser,
+			Users:   []db.User{*signedInUser},
+		}
+		if err := tx.Teams.Create(r.Context(), ws); err != nil {
+			return err
+		}
+		_ = tx.Teams.AddMember(r.Context(), ws.ID, signedInUser.ID, "owner")
+		return nil
+	}); terr != nil {
+		a.logger.Warn("failed to ensure default team on oauth sign-in", "error", terr)
 	}
 
 	token, err := utils.GenerateJWT([]byte(a.RedisSecret), *signedInUser.Email)

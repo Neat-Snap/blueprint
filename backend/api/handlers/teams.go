@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -13,31 +14,32 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/middleware"
 	"github.com/Neat-Snap/blueprint-backend/utils"
 	"github.com/go-chi/chi/v5"
+	"gorm.io/gorm"
 )
 
-type WorkspacesAPI struct {
+type TeamsAPI struct {
 	logger     logger.MultiLogger
 	Connection *db.Connection
 }
 
-// PATCH /workspaces/{id}/members/{user_id}/role
-func (h *WorkspacesAPI) UpdateMemberRoleEndpoint(w http.ResponseWriter, r *http.Request) {
+// PATCH /teams/{id}/members/{user_id}/role
+func (h *TeamsAPI) UpdateMemberRoleEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 	userID := userObj.ID
 
-	workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	teamID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+		utils.WriteError(w, h.logger, err, "invalid team ID", http.StatusBadRequest)
 		return
 	}
 
-	workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+	team, err := h.Connection.Teams.ByID(r.Context(), uint(teamID))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get team", http.StatusInternalServerError)
 		return
 	}
 
-	if workspace.OwnerID != userID {
+	if team.OwnerID != userID {
 		utils.WriteError(w, h.logger, nil, "user does not have access to change member roles", http.StatusForbidden)
 		return
 	}
@@ -48,8 +50,8 @@ func (h *WorkspacesAPI) UpdateMemberRoleEndpoint(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if uint(memberID) == workspace.OwnerID {
-		utils.WriteError(w, h.logger, nil, "cannot change role of the workspace owner", http.StatusBadRequest)
+	if uint(memberID) == team.OwnerID {
+		utils.WriteError(w, h.logger, nil, "cannot change role of the team owner", http.StatusBadRequest)
 		return
 	}
 
@@ -65,8 +67,7 @@ func (h *WorkspacesAPI) UpdateMemberRoleEndpoint(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Use upsert to set role
-	if err := h.Connection.Workspaces.AddMember(r.Context(), uint(workspaceID), uint(memberID), req.Role); err != nil {
+	if err := h.Connection.Teams.AddMember(r.Context(), uint(teamID), uint(memberID), req.Role); err != nil {
 		utils.WriteError(w, h.logger, err, "failed to update member role", http.StatusInternalServerError)
 		return
 	}
@@ -74,26 +75,26 @@ func (h *WorkspacesAPI) UpdateMemberRoleEndpoint(w http.ResponseWriter, r *http.
 	utils.WriteSuccess(w, h.logger, map[string]any{"status": "updated"}, http.StatusOK)
 }
 
-// GET /workspaces/{id}/invitations
-func (h *WorkspacesAPI) ListInvitationsEndpoint(w http.ResponseWriter, r *http.Request) {
+// GET /teams/{id}/invitations
+func (h *TeamsAPI) ListInvitationsEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
-	workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	teamID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+		utils.WriteError(w, h.logger, err, "invalid team ID", http.StatusBadRequest)
 		return
 	}
-	workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+	team, err := h.Connection.Teams.ByID(r.Context(), uint(teamID))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get team", http.StatusInternalServerError)
 		return
 	}
-	rolesMap, _ := h.Connection.Workspaces.RolesForWorkspace(r.Context(), uint(workspaceID))
+	rolesMap, _ := h.Connection.Teams.RolesForTeam(r.Context(), uint(teamID))
 	role := rolesMap[userObj.ID]
-	if workspace.OwnerID != userObj.ID && role != "admin" {
+	if team.OwnerID != userObj.ID && role != "admin" {
 		utils.WriteError(w, h.logger, nil, "forbidden", http.StatusForbidden)
 		return
 	}
-	list, err := h.Connection.Invitations.ListByWorkspace(r.Context(), uint(workspaceID))
+	list, err := h.Connection.Invitations.ListByTeam(r.Context(), uint(teamID))
 	if err != nil {
 		utils.WriteError(w, h.logger, err, "failed to list invitations", http.StatusInternalServerError)
 		return
@@ -114,22 +115,22 @@ func (h *WorkspacesAPI) ListInvitationsEndpoint(w http.ResponseWriter, r *http.R
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }
 
-// DELETE /workspaces/{id}/invitations/{inv_id}
-func (h *WorkspacesAPI) RevokeInvitationEndpoint(w http.ResponseWriter, r *http.Request) {
+// DELETE /teams/{id}/invitations/{inv_id}
+func (h *TeamsAPI) RevokeInvitationEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
-	workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	teamID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+		utils.WriteError(w, h.logger, err, "invalid team ID", http.StatusBadRequest)
 		return
 	}
-	workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+	team, err := h.Connection.Teams.ByID(r.Context(), uint(teamID))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get team", http.StatusInternalServerError)
 		return
 	}
-	rolesMap, _ := h.Connection.Workspaces.RolesForWorkspace(r.Context(), uint(workspaceID))
+	rolesMap, _ := h.Connection.Teams.RolesForTeam(r.Context(), uint(teamID))
 	role := rolesMap[userObj.ID]
-	if workspace.OwnerID != userObj.ID && role != "admin" {
+	if team.OwnerID != userObj.ID && role != "admin" {
 		utils.WriteError(w, h.logger, nil, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -145,25 +146,25 @@ func (h *WorkspacesAPI) RevokeInvitationEndpoint(w http.ResponseWriter, r *http.
 	utils.WriteSuccess(w, h.logger, map[string]any{"status": "revoked"}, http.StatusOK)
 }
 
-// POST /workspaces/{id}/invitations
-func (h *WorkspacesAPI) CreateInvitationEndpoint(w http.ResponseWriter, r *http.Request) {
+// POST /teams/{id}/invitations
+func (h *TeamsAPI) CreateInvitationEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 
-	workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	teamID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+		utils.WriteError(w, h.logger, err, "invalid team ID", http.StatusBadRequest)
 		return
 	}
 
-	workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+	team, err := h.Connection.Teams.ByID(r.Context(), uint(teamID))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get team", http.StatusInternalServerError)
 		return
 	}
 
-	rolesMap, _ := h.Connection.Workspaces.RolesForWorkspace(r.Context(), uint(workspaceID))
+	rolesMap, _ := h.Connection.Teams.RolesForTeam(r.Context(), uint(teamID))
 	role := rolesMap[userObj.ID]
-	if workspace.OwnerID != userObj.ID && role != "admin" {
+	if team.OwnerID != userObj.ID && role != "admin" {
 		utils.WriteError(w, h.logger, nil, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -188,35 +189,60 @@ func (h *WorkspacesAPI) CreateInvitationEndpoint(w http.ResponseWriter, r *http.
 		return
 	}
 
-	token := generateToken()
-	inv := &db.WorkspaceInvitation{
-		WorkspaceID: uint(workspaceID),
-		Email:       strings.ToLower(req.Email),
-		Token:       token,
-		Role:        req.Role,
-		Status:      "pending",
-		ExpiresAt:   time.Now().Add(7 * 24 * time.Hour),
-	}
-	if err := h.Connection.Invitations.Create(r.Context(), inv); err != nil {
-		utils.WriteError(w, h.logger, err, "failed to create invitation", http.StatusInternalServerError)
+	inviteEmail := strings.ToLower(req.Email)
+	u, uerr := h.Connection.Users.ByEmail(r.Context(), inviteEmail)
+	if uerr != nil {
+		if errors.Is(uerr, gorm.ErrRecordNotFound) {
+			utils.WriteError(w, h.logger, nil, "user with this email does not exist", http.StatusBadRequest)
+			return
+		}
+		utils.WriteError(w, h.logger, uerr, "failed to look up user", http.StatusInternalServerError)
 		return
 	}
 
-	// if user with this email already exists create a notification for them
-	if u, err := h.Connection.Users.ByEmail(r.Context(), strings.ToLower(req.Email)); err == nil && u != nil {
-		payload := map[string]any{
-			"workspace_id":   workspace.ID,
-			"workspace_name": workspace.Name,
-			"token":          token,
-			"role":           req.Role,
+	if rolesMap[u.ID] != "" {
+		utils.WriteError(w, h.logger, nil, "user is already a team member", http.StatusBadRequest)
+		return
+	}
+
+	if existing, lerr := h.Connection.Invitations.ListByTeam(r.Context(), uint(teamID)); lerr == nil {
+		for _, e := range existing {
+			if strings.EqualFold(e.Email, inviteEmail) && e.Status == "pending" && time.Now().Before(e.ExpiresAt) {
+				utils.WriteError(w, h.logger, nil, "an active invitation already exists for this user", http.StatusBadRequest)
+				return
+			}
 		}
-		if b, perr := json.Marshal(payload); perr == nil {
-			_ = h.Connection.Notifications.Create(r.Context(), &db.Notification{
-				UserID: u.ID,
-				Type:   "workspace_invite",
-				Data:   string(b),
-			})
-		}
+	} else {
+		utils.WriteError(w, h.logger, lerr, "failed to check existing invitations", http.StatusInternalServerError)
+		return
+	}
+
+	token := generateToken()
+	inv := &db.TeamInvitation{
+		TeamID:    uint(teamID),
+		Email:     inviteEmail,
+		Token:     token,
+		Role:      req.Role,
+		Status:    "pending",
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+	if err := h.Connection.Invitations.Create(r.Context(), inv); err != nil {
+		utils.WriteError(w, h.logger, err, "failed to create team invitation", http.StatusInternalServerError)
+		return
+	}
+
+	payload := map[string]any{
+		"team_id":   team.ID,
+		"team_name": team.Name,
+		"token":     token,
+		"role":      req.Role,
+	}
+	if b, perr := json.Marshal(payload); perr == nil {
+		_ = h.Connection.Notifications.Create(r.Context(), &db.Notification{
+			UserID: u.ID,
+			Type:   "team_invite",
+			Data:   string(b),
+		})
 	}
 
 	resp := struct {
@@ -225,8 +251,8 @@ func (h *WorkspacesAPI) CreateInvitationEndpoint(w http.ResponseWriter, r *http.
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }
 
-// POST /workspaces/invitations/accept
-func (h *WorkspacesAPI) AcceptInvitationEndpoint(w http.ResponseWriter, r *http.Request) {
+// POST /teams/invitations/accept
+func (h *TeamsAPI) AcceptInvitationEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 
 	var req struct {
@@ -251,7 +277,7 @@ func (h *WorkspacesAPI) AcceptInvitationEndpoint(w http.ResponseWriter, r *http.
 	}
 
 	err = h.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
-		if err := tx.Workspaces.AddMember(r.Context(), inv.WorkspaceID, userObj.ID, inv.Role); err != nil {
+		if err := tx.Teams.AddMember(r.Context(), inv.TeamID, userObj.ID, inv.Role); err != nil {
 			return err
 		}
 		return tx.Invitations.MarkAccepted(r.Context(), inv.ID)
@@ -283,46 +309,45 @@ func generateToken() string {
 	return string(b)
 }
 
-// GET /workspaces/{id}/overview
-func (h *WorkspacesAPI) GetWorkspaceOverviewEndpoint(w http.ResponseWriter, r *http.Request) {
+// GET /teams/{id}/overview
+func (h *TeamsAPI) GetTeamOverviewEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 	userID := userObj.ID
 
-	workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	teamID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+		utils.WriteError(w, h.logger, err, "invalid team ID", http.StatusBadRequest)
 		return
 	}
 
-	workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+	team, err := h.Connection.Teams.ByID(r.Context(), uint(teamID))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get team", http.StatusInternalServerError)
 		return
 	}
 
 	var hasAccess bool
-	for _, user := range workspace.Users {
+	for _, user := range team.Users {
 		if user.ID == userID {
 			hasAccess = true
 			break
 		}
 	}
 	if !hasAccess {
-		h.logger.Warn("user does not have access to workspace", "workspace_id", workspaceID, "user_id", userID)
-		utils.WriteError(w, h.logger, nil, "workspace not found", http.StatusNotFound)
+		h.logger.Warn("user does not have access to team", "team_id", teamID, "user_id", userID)
+		utils.WriteError(w, h.logger, nil, "team not found", http.StatusNotFound)
 		return
 	}
 
-	// Minimal per-workspace stats (extend as needed)
 	stats := map[string]any{
-		"members_count": len(workspace.Users),
+		"members_count": len(team.Users),
 	}
 
 	resp := map[string]any{
-		"workspace": map[string]any{
-			"id":   workspace.ID,
-			"name": workspace.Name,
-			"icon": workspace.Icon,
+		"team": map[string]any{
+			"id":   team.ID,
+			"name": team.Name,
+			"icon": team.Icon,
 		},
 		"stats": stats,
 	}
@@ -330,17 +355,17 @@ func (h *WorkspacesAPI) GetWorkspaceOverviewEndpoint(w http.ResponseWriter, r *h
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }
 
-func NewWorkspacesAPI(logger logger.MultiLogger, connection *db.Connection) *WorkspacesAPI {
-	return &WorkspacesAPI{logger: logger, Connection: connection}
+func NewTeamsAPI(logger logger.MultiLogger, connection *db.Connection) *TeamsAPI {
+	return &TeamsAPI{logger: logger, Connection: connection}
 }
 
-// GET /workspaces
-func (h *WorkspacesAPI) GetWorkspacesEndpoint(w http.ResponseWriter, r *http.Request) {
+// GET /teams
+func (h *TeamsAPI) GetTeamsEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 
-	workspaces, err := h.Connection.Workspaces.ListForUser(r.Context(), userObj.ID)
+	teams, err := h.Connection.Teams.ListForUser(r.Context(), userObj.ID)
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspaces", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get teams", http.StatusInternalServerError)
 		return
 	}
 
@@ -353,7 +378,7 @@ func (h *WorkspacesAPI) GetWorkspacesEndpoint(w http.ResponseWriter, r *http.Req
 
 	var resp []respPart
 
-	for _, ws := range workspaces {
+	for _, ws := range teams {
 		resp = append(resp, respPart{
 			ID:      ws.ID,
 			Name:    ws.Name,
@@ -364,15 +389,14 @@ func (h *WorkspacesAPI) GetWorkspacesEndpoint(w http.ResponseWriter, r *http.Req
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }
 
-// POST /workspaces
-func (h *WorkspacesAPI) CreateWorkspaceEndpoint(w http.ResponseWriter, r *http.Request) {
+// POST /teams
+func (h *TeamsAPI) CreateTeamEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 
 	var req struct {
 		Name string `json:"name"`
 		Icon string `json:"icon"`
 	}
-
 	err := utils.ReadJSON(r.Body, w, h.logger, &req)
 	if err != nil {
 		utils.WriteError(w, h.logger, err, "failed to read request body", http.StatusBadRequest)
@@ -384,7 +408,7 @@ func (h *WorkspacesAPI) CreateWorkspaceEndpoint(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	ws := &db.WorkSpace{
+	ws := &db.Team{
 		Name:    req.Name,
 		Icon:    req.Icon,
 		OwnerID: userObj.ID,
@@ -392,13 +416,13 @@ func (h *WorkspacesAPI) CreateWorkspaceEndpoint(w http.ResponseWriter, r *http.R
 		Users:   []db.User{*userObj},
 	}
 
-	err = h.Connection.Workspaces.Create(r.Context(), ws)
+	err = h.Connection.Teams.Create(r.Context(), ws)
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to create workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to create team", http.StatusInternalServerError)
 		return
 	}
 
-	_ = h.Connection.Workspaces.AddMember(r.Context(), ws.ID, userObj.ID, "admin")
+	_ = h.Connection.Teams.AddMember(r.Context(), ws.ID, userObj.ID, "admin")
 
 	resp := struct {
 		ID   uint   `json:"id"`
@@ -415,20 +439,20 @@ func (h *WorkspacesAPI) CreateWorkspaceEndpoint(w http.ResponseWriter, r *http.R
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }
 
-// GET /workspaces/{id}
-func (h *WorkspacesAPI) GetWorkspaceEndpoint(w http.ResponseWriter, r *http.Request) {
+// GET /teams/{id}
+func (h *TeamsAPI) GetTeamEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 	userID := userObj.ID
 
-	workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	teamID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+		utils.WriteError(w, h.logger, err, "invalid team ID", http.StatusBadRequest)
 		return
 	}
 
-	workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+	team, err := h.Connection.Teams.ByID(r.Context(), uint(teamID))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get team", http.StatusInternalServerError)
 		return
 	}
 
@@ -440,8 +464,8 @@ func (h *WorkspacesAPI) GetWorkspaceEndpoint(w http.ResponseWriter, r *http.Requ
 		Role string `json:"role"`
 	}{}
 
-	rolesMap, _ := h.Connection.Workspaces.RolesForWorkspace(r.Context(), uint(workspaceID))
-	for _, user := range workspace.Users {
+	rolesMap, _ := h.Connection.Teams.RolesForTeam(r.Context(), uint(teamID))
+	for _, user := range team.Users {
 		if user.ID == userID {
 			hasAccess = true
 		}
@@ -461,8 +485,8 @@ func (h *WorkspacesAPI) GetWorkspaceEndpoint(w http.ResponseWriter, r *http.Requ
 	}
 
 	if !hasAccess {
-		h.logger.Warn("user does not have access to workspace", "workspace_id", workspaceID, "user_id", userID)
-		utils.WriteError(w, h.logger, nil, "workspace not found", http.StatusNotFound)
+		h.logger.Warn("user does not have access to team", "team_id", teamID, "user_id", userID)
+		utils.WriteError(w, h.logger, nil, "team not found", http.StatusNotFound)
 		return
 	}
 
@@ -477,37 +501,37 @@ func (h *WorkspacesAPI) GetWorkspaceEndpoint(w http.ResponseWriter, r *http.Requ
 			Role string `json:"role"`
 		} `json:"members"`
 	}{
-		ID:      workspace.ID,
-		Name:    workspace.Name,
-		Icon:    workspace.Icon,
-		OwnerID: int(workspace.OwnerID),
+		ID:      team.ID,
+		Name:    team.Name,
+		Icon:    team.Icon,
+		OwnerID: int(team.OwnerID),
 		Members: members,
 	}
 
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }
 
-// PATCH /workspaces/{id}
-func (h *WorkspacesAPI) UpdateWorkspaceNameEndpoint(w http.ResponseWriter, r *http.Request) {
+// PATCH /teams/{id}
+func (h *TeamsAPI) UpdateTeamNameEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 	userID := userObj.ID
 
-	workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	teamID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+		utils.WriteError(w, h.logger, err, "invalid team ID", http.StatusBadRequest)
 		return
 	}
 
-	workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+	team, err := h.Connection.Teams.ByID(r.Context(), uint(teamID))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get team", http.StatusInternalServerError)
 		return
 	}
 
-	rolesMap, _ := h.Connection.Workspaces.RolesForWorkspace(r.Context(), uint(workspaceID))
-	if workspace.OwnerID != userID && rolesMap[userID] != "admin" {
-		h.logger.Warn("user does not have access to workspace", "workspace_id", workspaceID, "user_id", userID)
-		utils.WriteError(w, h.logger, nil, "user does not have access to change the workspace info", http.StatusForbidden)
+	rolesMap, _ := h.Connection.Teams.RolesForTeam(r.Context(), uint(teamID))
+	if team.OwnerID != userID && rolesMap[userID] != "admin" {
+		h.logger.Warn("user does not have access to team", "team_id", teamID, "user_id", userID)
+		utils.WriteError(w, h.logger, nil, "user does not have access to change the team info", http.StatusForbidden)
 		return
 	}
 
@@ -523,19 +547,19 @@ func (h *WorkspacesAPI) UpdateWorkspaceNameEndpoint(w http.ResponseWriter, r *ht
 	}
 
 	if req.Name != "" {
-		workspace.Name = req.Name
+		team.Name = req.Name
 	}
 	if req.Icon != "" {
 		if !isAllowedIcon(req.Icon) {
 			utils.WriteError(w, h.logger, nil, "invalid icon", http.StatusBadRequest)
 			return
 		}
-		workspace.Icon = req.Icon
+		team.Icon = req.Icon
 	}
 
-	err = h.Connection.Workspaces.Update(r.Context(), workspace)
+	err = h.Connection.Teams.Update(r.Context(), team)
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to update workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to update team", http.StatusInternalServerError)
 		return
 	}
 
@@ -550,32 +574,32 @@ func (h *WorkspacesAPI) UpdateWorkspaceNameEndpoint(w http.ResponseWriter, r *ht
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }
 
-// DELETE /workspaces/{id}
-func (h *WorkspacesAPI) DeleteWorkspaceEndpoint(w http.ResponseWriter, r *http.Request) {
+// DELETE /teams/{id}
+func (h *TeamsAPI) DeleteTeamEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 	userID := userObj.ID
 
-	workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	teamID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+		utils.WriteError(w, h.logger, err, "invalid team ID", http.StatusBadRequest)
 		return
 	}
 
-	workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+	team, err := h.Connection.Teams.ByID(r.Context(), uint(teamID))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get team", http.StatusInternalServerError)
 		return
 	}
 
-	if workspace.OwnerID != userID {
-		h.logger.Warn("user does not have access to workspace", "workspace_id", workspaceID, "user_id", userID)
-		utils.WriteError(w, h.logger, nil, "user does not have access to delete the workspace", http.StatusForbidden)
+	if team.OwnerID != userID {
+		h.logger.Warn("user does not have access to team", "team_id", teamID, "user_id", userID)
+		utils.WriteError(w, h.logger, nil, "user does not have access to delete the team", http.StatusForbidden)
 		return
 	}
 
-	err = h.Connection.Workspaces.Delete(r.Context(), workspace)
+	err = h.Connection.Teams.Delete(r.Context(), team)
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to delete workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to delete team", http.StatusInternalServerError)
 		return
 	}
 
@@ -590,27 +614,27 @@ func (h *WorkspacesAPI) DeleteWorkspaceEndpoint(w http.ResponseWriter, r *http.R
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }
 
-// POST /workspaces/{id}/members
-func (h *WorkspacesAPI) AddMemberEndpoint(w http.ResponseWriter, r *http.Request) {
+// POST /teams/{id}/members
+func (h *TeamsAPI) AddMemberEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 	userID := userObj.ID
 
-	workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	teamID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+		utils.WriteError(w, h.logger, err, "invalid team ID", http.StatusBadRequest)
 		return
 	}
 
-	workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+	team, err := h.Connection.Teams.ByID(r.Context(), uint(teamID))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get team", http.StatusInternalServerError)
 		return
 	}
 
-	rolesMap, _ := h.Connection.Workspaces.RolesForWorkspace(r.Context(), uint(workspaceID))
-	if workspace.OwnerID != userID && rolesMap[userID] != "admin" {
-		h.logger.Warn("user does not have access to workspace", "workspace_id", workspaceID, "user_id", userID)
-		utils.WriteError(w, h.logger, nil, "user does not have access to add a member to the workspace", http.StatusForbidden)
+	rolesMap, _ := h.Connection.Teams.RolesForTeam(r.Context(), uint(teamID))
+	if team.OwnerID != userID && rolesMap[userID] != "admin" {
+		h.logger.Warn("user does not have access to team", "team_id", teamID, "user_id", userID)
+		utils.WriteError(w, h.logger, nil, "user does not have access to add a member to the team", http.StatusForbidden)
 		return
 	}
 
@@ -630,9 +654,9 @@ func (h *WorkspacesAPI) AddMemberEndpoint(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err = h.Connection.Workspaces.AddMember(r.Context(), uint(workspaceID), req.UserID, req.Role)
+	err = h.Connection.Teams.AddMember(r.Context(), uint(teamID), req.UserID, req.Role)
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to add member to workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to add member to team", http.StatusInternalServerError)
 		return
 	}
 
@@ -647,27 +671,27 @@ func (h *WorkspacesAPI) AddMemberEndpoint(w http.ResponseWriter, r *http.Request
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }
 
-// DELETE /workspaces/{id}/members/{user_id}
-func (h *WorkspacesAPI) RemoveMemberEndpoint(w http.ResponseWriter, r *http.Request) {
+// DELETE /teams/{id}/members/{user_id}
+func (h *TeamsAPI) RemoveMemberEndpoint(w http.ResponseWriter, r *http.Request) {
 	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 	userID := userObj.ID
 
-	workspaceID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	teamID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "invalid workspace ID", http.StatusBadRequest)
+		utils.WriteError(w, h.logger, err, "invalid team ID", http.StatusBadRequest)
 		return
 	}
 
-	workspace, err := h.Connection.Workspaces.ByID(r.Context(), uint(workspaceID))
+	team, err := h.Connection.Teams.ByID(r.Context(), uint(teamID))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to get workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to get team", http.StatusInternalServerError)
 		return
 	}
 
-	rolesMap, _ := h.Connection.Workspaces.RolesForWorkspace(r.Context(), uint(workspaceID))
-	if workspace.OwnerID != userID && rolesMap[userID] != "admin" {
-		h.logger.Warn("user does not have access to workspace", "workspace_id", workspaceID, "user_id", userID)
-		utils.WriteError(w, h.logger, nil, "user does not have access to remove a member from the workspace", http.StatusForbidden)
+	rolesMap, _ := h.Connection.Teams.RolesForTeam(r.Context(), uint(teamID))
+	if team.OwnerID != userID && rolesMap[userID] != "admin" {
+		h.logger.Warn("user does not have access to team", "team_id", teamID, "user_id", userID)
+		utils.WriteError(w, h.logger, nil, "user does not have access to remove a member from the team", http.StatusForbidden)
 		return
 	}
 
@@ -677,13 +701,13 @@ func (h *WorkspacesAPI) RemoveMemberEndpoint(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if uint(memberID) == workspace.OwnerID {
-		utils.WriteError(w, h.logger, nil, "cannot remove workspace owner", http.StatusBadRequest)
+	if uint(memberID) == team.OwnerID {
+		utils.WriteError(w, h.logger, nil, "cannot remove team owner", http.StatusBadRequest)
 		return
 	}
-	err = h.Connection.Workspaces.RemoveMember(r.Context(), uint(workspaceID), uint(memberID))
+	err = h.Connection.Teams.RemoveMember(r.Context(), uint(teamID), uint(memberID))
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to remove member from workspace", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to remove member from team", http.StatusInternalServerError)
 		return
 	}
 
