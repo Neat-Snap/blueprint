@@ -90,7 +90,10 @@ func getint(k string, def int) int {
 func Load() Config {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatalf("failed to load env variables: %v", err)
+		err = godotenv.Load(".env.local")
+		if err != nil {
+			log.Fatalf("failed to load env variables: %v", err)
+		}
 	}
 	return Config{
 		Addr:          getenv("BACKEND_ADDR", ":8080"),
