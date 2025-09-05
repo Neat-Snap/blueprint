@@ -60,6 +60,8 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.With(mw.Confirmation(c.Config, c.EmailClient.R)).Get("/me", authAPI.MeEndpoint)
 		r.Get("/logout", authAPI.LogoutEndpoint)
 		r.Post("/resend-email", authAPI.ResendEmailEndpoint)
+		r.Post("/password/reset", authAPI.ResetPasswordEndpoint)
+		r.Post("/password/confirm", authAPI.ResetPasswordConfirmEndpoint)
 	})
 
 	dashboardAPI := handlers.NewDashboardAPI(c.Logger, c.Connection)

@@ -141,6 +141,29 @@ func SignUpEmailPassword(ctx context.Context, store *db.Connection, email, passw
 	return out, err
 }
 
+func ResetPassword(ctx context.Context, store *db.Connection, email, password string) error {
+	e := NormalizeEmail(email)
+	if e == "" || password == "" {
+		return errors.New("email and password required")
+	}
+
+	u, err := store.Users.ByEmail(ctx, e)
+	if err != nil {
+		return err
+	}
+
+	if u.PasswordCredential == nil || u.PasswordCredential.PasswordDisabled {
+		return ErrOAuthOnlyAccount
+	}
+
+	hash, hashErr := HashPassword(password, DefaultArgon)
+	if hashErr != nil {
+		return hashErr
+	}
+
+	return store.Auth.EnsurePasswordCredential(ctx, u.ID, hash)
+}
+
 func GenerateJWT(secret []byte, email string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": email,

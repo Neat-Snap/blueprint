@@ -34,3 +34,13 @@ export async function resendEmail(email: string): Promise<SignupResponse> {
   const { data } = await api.post<SignupResponse>("/auth/resend-email", { email });
   return data;
 }
+
+export async function requestPasswordReset(email: string): Promise<{ success: boolean; message: string }>{
+  const { data } = await api.post<{ success: boolean; message: string }>("/auth/password/reset", { email });
+  return data;
+}
+
+export async function confirmPasswordReset(reset_password_id: string, code: string, password: string): Promise<void> {
+  // Backend may respond with a redirect (302). Axios treats it as success; we don't need the response body.
+  await api.post("/auth/password/confirm", { reset_password_id, code, password });
+}

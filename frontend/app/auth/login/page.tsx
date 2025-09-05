@@ -109,7 +109,7 @@ export default function LoginPage() {
                   <div className="grid gap-3">
                     <div className="flex items-center">
                       <Label htmlFor="password">Password</Label>
-                      <Link href="#" className="ml-auto text-sm underline-offset-4 hover:underline">
+                      <Link href={`/auth/forgot?email=${encodeURIComponent(email)}`} className="ml-auto text-sm underline-offset-4 hover:underline">
                         Forgot your password?
                       </Link>
                     </div>

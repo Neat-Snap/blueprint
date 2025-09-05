@@ -20,6 +20,19 @@ type Redis struct {
 	Key func(purpose, id string) string
 }
 
+func (rc *Redis) AllowOncePer(ctx context.Context, purpose, email string, period time.Duration) (ok bool, ttl time.Duration, err error) {
+	key := rc.Key(purpose+"_once", strings.ToLower(strings.TrimSpace(email)))
+	set, err := rc.R.SetNX(ctx, key, 1, period).Result()
+	if err != nil {
+		return false, 0, err
+	}
+	if set {
+		return true, period, nil
+	}
+	t, _ := rc.R.TTL(ctx, key).Result()
+	return false, t, nil
+}
+
 var (
 	ErrNotFound     = errors.New("code not found")
 	ErrExpired      = errors.New("code expired")

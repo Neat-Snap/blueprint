@@ -70,14 +70,13 @@ type SessionUser struct {
 
 // GET /auth/me
 func (a *AuthAPI) MeEndpoint(w http.ResponseWriter, r *http.Request) {
-	// Read token from HttpOnly cookie
 	c, err := r.Cookie("token")
 	if err != nil || c == nil || c.Value == "" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	email, err := utils.DecodeJWT([]byte(a.RedisSecret), c.Value)
+	email, err := utils.DecodeJWT([]byte(a.Config.JWT_SECRET), c.Value)
 	if err != nil {
 		http.Error(w, "invalid token", http.StatusUnauthorized)
 		return
@@ -261,7 +260,7 @@ func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := utils.GenerateJWT([]byte(a.RedisSecret), verifiedEmail)
+	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), verifiedEmail)
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
 		return
@@ -300,7 +299,7 @@ func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
 			return errors.New("invalid password")
 		}
 
-		token, err := utils.GenerateJWT([]byte(a.RedisSecret), u.Email)
+		token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), u.Email)
 		if err != nil {
 			return err
 		}
@@ -461,7 +460,7 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 		a.logger.Warn("failed to ensure default team on oauth sign-in", "error", terr)
 	}
 
-	token, err := utils.GenerateJWT([]byte(a.RedisSecret), *signedInUser.Email)
+	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), *signedInUser.Email)
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
 		return
@@ -537,4 +536,126 @@ func (a *AuthAPI) ResendEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+}
+
+func (a *AuthAPI) ResetPasswordEndpoint(w http.ResponseWriter, r *http.Request) {
+	var requestStruct struct {
+		Email string `json:"email"`
+	}
+
+	err := utils.ReadJSON(r.Body, w, a.logger, &requestStruct)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	mail := requestStruct.Email
+
+	if mail == "" {
+		utils.WriteError(w, a.logger, errors.New("email is required"), "email is required", http.StatusBadRequest)
+		return
+	}
+
+	mail = strings.ToLower(strings.TrimSpace(mail))
+	u, err := a.Connection.Users.ByEmail(r.Context(), mail)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "user not found", http.StatusNotFound)
+		return
+	}
+
+	if u.PasswordCredential == nil || u.PasswordCredential.PasswordDisabled {
+		utils.WriteError(w, a.logger, utils.ErrOAuthOnlyAccount, "oauth only account", http.StatusUnauthorized)
+		return
+	}
+
+	if ok, ttl, err := a.EmailClient.R.AllowOncePer(r.Context(), email.ResetPasswordPurpose, mail, 72*time.Hour); err != nil {
+		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
+		return
+	} else if !ok {
+		utils.WriteError(
+			w,
+			a.logger,
+			email.ErrLimitReached,
+			fmt.Sprintf("Password reset already requested recently. Try again in %d hours", int(ttl.Hours())),
+			http.StatusTooManyRequests,
+		)
+		return
+	}
+
+	count, ttl, err := a.EmailClient.R.IncrementResend(r.Context(), email.ResetPasswordPurpose, mail, 4*time.Hour)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if count > 3 {
+		utils.WriteError(w, a.logger, email.ErrLimitReached, fmt.Sprintf("limit reached. Try again in %d seconds", int(ttl.Seconds())), http.StatusTooManyRequests)
+		return
+	}
+
+	if _, err := a.EmailClient.SendResetPasswordEmail(mail, "Reset your password", 60); err != nil {
+		utils.WriteError(w, a.logger, err, "error sending reset password email", http.StatusInternalServerError)
+		return
+	}
+
+	resp := struct {
+		Message string `json:"message"`
+		Success bool   `json:"success"`
+	}{
+		Message: "Reset password email sent successfully",
+		Success: true,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		a.logger.Warn("failed to encode response", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *AuthAPI) ResetPasswordConfirmEndpoint(w http.ResponseWriter, r *http.Request) {
+	var requestStruct struct {
+		ResetID  string `json:"reset_password_id"`
+		Code     string `json:"code"`
+		Password string `json:"password"`
+	}
+
+	err := utils.ReadJSON(r.Body, w, a.logger, &requestStruct)
+	if err != nil {
+		return
+	}
+
+	mail_address, err := a.EmailClient.R.Verify(r.Context(), []byte(a.RedisSecret), email.ResetPasswordPurpose, requestStruct.ResetID, requestStruct.Code)
+	if err != nil {
+		switch {
+		case errors.Is(err, email.ErrNotFound), errors.Is(err, email.ErrExpired):
+			utils.WriteError(w, a.logger, err, "Invalid or expired code", http.StatusBadRequest)
+		case errors.Is(err, email.ErrConsumed):
+			utils.WriteError(w, a.logger, err, "Code already used", http.StatusBadRequest)
+		case errors.Is(err, email.ErrMismatch):
+			utils.WriteError(w, a.logger, err, "Invalid code", http.StatusBadRequest)
+		case errors.Is(err, email.ErrTooMany):
+			utils.WriteError(w, a.logger, err, "Too many attempts, try again later", http.StatusTooManyRequests)
+		default:
+			utils.WriteError(w, a.logger, err, "Failed to verify email", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	err = utils.ResetPassword(r.Context(), a.Connection, mail_address, requestStruct.Password)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "Failed to update password", http.StatusInternalServerError)
+		return
+	}
+
+	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), mail_address)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	returnCookieToken(a.Config.APP_URL, w, token, a.Config)
+
+	http.Redirect(w, r, a.Config.APP_URL+"/auth/ready?password_reset=true", http.StatusFound)
 }

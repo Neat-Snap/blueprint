@@ -24,7 +24,8 @@ type EmailClient struct {
 }
 
 var (
-	VerifyPurpose = "email_verify"
+	VerifyPurpose        = "email_verify"
+	ResetPasswordPurpose = "password_reset"
 )
 
 func NewEmailClient(cfg config.Config, logger logger.MultiLogger) *EmailClient {
@@ -84,6 +85,10 @@ func (e *EmailClient) buildActionUrl(id, code string) string {
 	return e.Config.APP_URL + "/auth/verify?cid=" + id + "&code=" + code
 }
 
+func (e *EmailClient) buildResetPasswordUrl(id, code string) string {
+	return e.Config.APP_URL + "/auth/reset-password?cid=" + id + "&code=" + code
+}
+
 func (e *EmailClient) SendConfirmationEmail(recipient string, subject string, expiresMin int) (string, error) {
 	tmpl, err := e.GetTemplateFromFile("confirmation_template.html")
 	if err != nil {
@@ -100,6 +105,33 @@ func (e *EmailClient) SendConfirmationEmail(recipient string, subject string, ex
 		"{{CODE}}", code,
 		"{{EXPIRES_MIN}}", fmt.Sprint(expiresMin),
 		"{{ACTION_URL}}", e.buildActionUrl(id, code),
+		"{{SUPPORT_EMAIL}}", e.Config.SUPPORT_EMAIL,
+		"{{CURRENT_YEAR}}", fmt.Sprint(time.Now().Year()),
+	).Replace(tmpl)
+
+	_, err = e.SendEmail(recipient, subject, html)
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
+}
+
+func (e *EmailClient) SendResetPasswordEmail(recipient string, subject string, expiresMin int) (string, error) {
+	tmpl, err := e.GetTemplateFromFile("reset_password_template.html")
+	if err != nil {
+		return "", err
+	}
+
+	id, code, err := e.R.Create(context.Background(), []byte(e.Config.REDIS_SECRET), ResetPasswordPurpose, recipient, 6, time.Duration(expiresMin)*time.Minute, 1)
+	if err != nil {
+		return "", err
+	}
+
+	html := strings.NewReplacer(
+		"{{APP_NAME}}", e.Config.APP_NAME,
+		"{{EXPIRES_MIN}}", fmt.Sprint(expiresMin),
+		"{{RESET_URL}}", e.buildResetPasswordUrl(id, code),
 		"{{SUPPORT_EMAIL}}", e.Config.SUPPORT_EMAIL,
 		"{{CURRENT_YEAR}}", fmt.Sprint(time.Now().Year()),
 	).Replace(tmpl)
