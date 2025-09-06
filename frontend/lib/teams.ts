@@ -77,8 +77,8 @@ export async function createInvitation(teamId: number, email: string, role: "reg
   return data;
 }
 
-export async function acceptInvitation(token: string): Promise<{ status: string }> {
-  const { data } = await api.post<{ status: string }>(`/teams/invitations/accept`, { token });
+export async function acceptInvitation(token: string): Promise<{ status: string; team_id: number; team_name: string; role: string }> {
+  const { data } = await api.post<{ status: string; team_id: number; team_name: string; role: string }>(`/teams/invitations/accept`, { token });
   return data;
 }
 

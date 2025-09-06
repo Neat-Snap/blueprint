@@ -10,6 +10,7 @@ import { useTeam } from "@/lib/teams-context";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 function parseInviteData(data: string): { team_id?: number; team_name?: string; token?: string; role?: string } {
   try {
@@ -21,7 +22,7 @@ function parseInviteData(data: string): { team_id?: number; team_name?: string; 
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { switchTo } = useTeam();
+  const { switchTo, refresh } = useTeam();
   const [loading, setLoading] = useState(true);
   const [list, setList] = useState<Notification[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -107,11 +108,15 @@ export default function NotificationsPage() {
       setInviteStatuses((prev) => ({ ...prev, [n.id]: "revoked" }));
       return;
     }
-    await acceptInvitation(payload.token);
+    const res = await acceptInvitation(payload.token);
     await markNotificationRead(n.id);
     setList((prev) => prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
-    if (payload.team_id) {
-      await switchTo(Number(payload.team_id));
+    const teamId = (res?.team_id ?? payload.team_id);
+    if (teamId) {
+      // Ensure teams list is fresh so the new team is present for selection
+      await refresh();
+      try { await switchTo(Number(teamId)); } finally { /* no-op */ }
+      toast.success("Invitation accepted", { description: `You're now a member of ${res?.team_name ?? "the team"}.` });
       router.push(`/dashboard/settings`);
     }
   }

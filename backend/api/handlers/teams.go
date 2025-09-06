@@ -287,7 +287,19 @@ func (h *TeamsAPI) AcceptInvitationEndpoint(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	utils.WriteSuccess(w, h.logger, map[string]any{"status": "accepted"}, http.StatusOK)
+	// Fetch team to include helpful context in the response
+	team, terr := h.Connection.Teams.ByID(r.Context(), inv.TeamID)
+	if terr != nil {
+		utils.WriteError(w, h.logger, terr, "failed to get team", http.StatusInternalServerError)
+		return
+	}
+
+	utils.WriteSuccess(w, h.logger, map[string]any{
+		"status":    "accepted",
+		"team_id":   team.ID,
+		"team_name": team.Name,
+		"role":      inv.Role,
+	}, http.StatusOK)
 }
 
 // POST /teams/invitations/check

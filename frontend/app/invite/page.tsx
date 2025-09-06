@@ -5,6 +5,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { acceptInvitation } from "@/lib/teams";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useTeam } from "@/lib/teams-context";
+import { toast } from "sonner";
 
 export default function InviteAcceptPage() {
   const search = useSearchParams();
@@ -13,6 +15,7 @@ export default function InviteAcceptPage() {
   const [status, setStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const ranOnceRef = useRef<string | null>(null);
+  const { refresh, switchTo } = useTeam();
 
   useEffect(() => {
     let cancelled = false;
@@ -24,13 +27,17 @@ export default function InviteAcceptPage() {
       setStatus("pending");
       setError(null);
       try {
-        await acceptInvitation(token);
+        const res = await acceptInvitation(token);
         if (cancelled) return;
         setStatus("success");
 
+        // Ensure the new team appears in the list and becomes active
+        await refresh();
+        await switchTo(res.team_id);
+        toast.success(`Invitation accepted`, { description: `You're now a member of ${res.team_name}.` });
         setTimeout(() => {
           router.push("/dashboard");
-        }, 1200);
+        }, 300);
       } catch (e: unknown) {
         const err = e as { response?: { data?: { error?: string } }; message?: string };
         if (cancelled) return;
@@ -48,9 +55,12 @@ export default function InviteAcceptPage() {
     setStatus("pending");
     setError(null);
     try {
-      await acceptInvitation(token);
+      const res = await acceptInvitation(token);
       setStatus("success");
-      setTimeout(() => router.push("/dashboard"), 1200);
+      await refresh();
+      await switchTo(res.team_id);
+      toast.success(`Invitation accepted`, { description: `You're now a member of ${res.team_name}.` });
+      setTimeout(() => router.push("/dashboard"), 300);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } }; message?: string };
       setStatus("error");
