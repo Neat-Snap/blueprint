@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { listNotifications, markNotificationRead, type Notification } from "@/lib/notifications";
-import { acceptInvitation } from "@/lib/teams";
+import { acceptInvitation, checkInvitationStatus, type InvitationStatus } from "@/lib/teams";
 import { useRouter } from "next/navigation";
 import { useTeam } from "@/lib/teams-context";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
 
 function parseInviteData(data: string): { team_id?: number; team_name?: string; token?: string; role?: string } {
   try {
@@ -25,6 +26,8 @@ export default function NotificationsPage() {
   const [list, setList] = useState<Notification[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [tab, setTab] = useState<"unread" | "read">("unread");
+  const [inviteStatuses, setInviteStatuses] = useState<Record<number, InvitationStatus["status"] | "invalid" | undefined>>({});
+  const markedRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     (async () => {
@@ -37,9 +40,73 @@ export default function NotificationsPage() {
     })();
   }, []);
 
+  // After notifications load, check status of invite notifications to filter revoked/expired/accepted
+  useEffect(() => {
+    const inviteNotifs = list.filter((n) => n.type === "team_invite");
+    if (!inviteNotifs.length) return;
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(
+        inviteNotifs.map(async (n) => {
+          const payload = parseInviteData(n.data);
+          const token = payload.token;
+          if (!token) return { id: n.id, status: "invalid" as const };
+          try {
+            const res = await checkInvitationStatus(token);
+            return { id: n.id, status: (res.status as InvitationStatus["status"]) };
+          } catch (e: unknown) {
+            const err = e as { response?: { status?: number } };
+            // Treat not found or bad request as invalid/revoked
+            if (err.response?.status === 404) {
+              return { id: n.id, status: "revoked" as const };
+            }
+            return { id: n.id, status: "invalid" as const };
+          }
+        })
+      );
+      if (cancelled) return;
+      setInviteStatuses((prev) => {
+        const next = { ...prev };
+        for (const r of results) next[r.id] = r.status;
+        return next;
+      });
+
+      // Auto-mark non-pending invites as read to clear unread state
+      for (const r of results) {
+        const notif = list.find((n) => n.id === r.id);
+        if (!notif) continue;
+        const nonPending = r.status && r.status !== "pending";
+        if (nonPending && !notif.readAt && !markedRef.current.has(r.id)) {
+          markedRef.current.add(r.id);
+          // Fire and forget
+          markNotificationRead(r.id).then(() => {
+            setList((prev) => prev.map((x) => (x.id === r.id ? { ...x, readAt: new Date().toISOString() } : x)));
+          }).catch(() => {
+            // ignore errors, UI still treats as read
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [list]);
+
   async function onAcceptInvite(n: Notification) {
     const payload = parseInviteData(n.data);
     if (!payload.token) return;
+    // Re-check status to avoid errors if invite was revoked/expired just now
+    try {
+      const status = await checkInvitationStatus(payload.token);
+      if (status.status !== "pending") {
+        setInviteStatuses((prev) => ({ ...prev, [n.id]: status.status as InvitationStatus["status"] }));
+        return;
+      }
+    } catch {
+      // If check fails, treat as non-pending to be safe
+      setInviteStatuses((prev) => ({ ...prev, [n.id]: "revoked" }));
+      return;
+    }
     await acceptInvitation(payload.token);
     await markNotificationRead(n.id);
     setList((prev) => prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
@@ -54,8 +121,18 @@ export default function NotificationsPage() {
     setList((prev) => prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
   }
 
-  const unread = useMemo(() => list.filter((n) => !n.readAt), [list]);
-  const read = useMemo(() => list.filter((n) => !!n.readAt), [list]);
+  const consideredRead = (n: Notification) => {
+    if (n.readAt) return true;
+    if (n.type === "team_invite") {
+      const st = inviteStatuses[n.id];
+      // If invite is not pending (revoked/expired/accepted/invalid), treat as read
+      return st && st !== "pending" ? true : false;
+    }
+    return false;
+  };
+
+  const unread = useMemo(() => list.filter((n) => !consideredRead(n)), [list, inviteStatuses]);
+  const read = useMemo(() => list.filter((n) => consideredRead(n)), [list, inviteStatuses]);
 
   if (loading) return null;
 
@@ -86,6 +163,7 @@ export default function NotificationsPage() {
                 const isInvite = n.type === "team_invite";
                 const isOpen = expandedId === n.id;
                 const d = isInvite ? parseInviteData(n.data) : {};
+                const st = isInvite ? inviteStatuses[n.id] : undefined;
                 return (
                   <li key={n.id} className="py-3">
                     <Collapsible open={isOpen} onOpenChange={(o) => setExpandedId(o ? n.id : null)}>
@@ -98,14 +176,25 @@ export default function NotificationsPage() {
                             </div>
                           </button>
                         </CollapsibleTrigger>
-                        {tab === "unread" ? (
+                        <div className="flex items-center gap-2">
+                          {isInvite && st && st !== "pending" && (
+                            st === "accepted" ? (
+                              <Badge variant="secondary">Accepted</Badge>
+                            ) : st === "expired" ? (
+                              <Badge variant="destructive">Expired</Badge>
+                            ) : (
+                              <Badge variant="destructive">Revoked</Badge>
+                            )
+                          )}
+                          {tab === "unread" ? (
                           <div className="flex items-center gap-2">
-                            {isInvite && (
+                            {isInvite && (!st || st === "pending") && (
                               <Button size="sm" type="button" onClick={() => onAcceptInvite(n)}>Accept</Button>
                             )}
                             <Button variant="outline" size="sm" type="button" onClick={() => onMarkRead(n)}>Read</Button>
                           </div>
-                        ) : null}
+                          ) : null}
+                        </div>
                       </div>
                       <CollapsibleContent>
                         <div className="mt-3 rounded-md border p-3 text-sm">

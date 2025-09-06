@@ -290,6 +290,54 @@ func (h *TeamsAPI) AcceptInvitationEndpoint(w http.ResponseWriter, r *http.Reque
 	utils.WriteSuccess(w, h.logger, map[string]any{"status": "accepted"}, http.StatusOK)
 }
 
+// POST /teams/invitations/check
+func (h *TeamsAPI) CheckInvitationStatusEndpoint(w http.ResponseWriter, r *http.Request) {
+	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
+
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := utils.ReadJSON(r.Body, w, h.logger, &req); err != nil {
+		utils.WriteError(w, h.logger, err, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Token) == "" {
+		utils.WriteError(w, h.logger, nil, "token is required", http.StatusBadRequest)
+		return
+	}
+
+	inv, err := h.Connection.Invitations.ByToken(r.Context(), req.Token)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "invitation not found", http.StatusNotFound)
+		return
+	}
+
+	if userObj.Email == nil || !strings.EqualFold(*userObj.Email, inv.Email) {
+		utils.WriteError(w, h.logger, nil, "invitation email mismatch", http.StatusForbidden)
+		return
+	}
+
+	team, terr := h.Connection.Teams.ByID(r.Context(), inv.TeamID)
+	if terr != nil {
+		utils.WriteError(w, h.logger, terr, "failed to get team", http.StatusInternalServerError)
+		return
+	}
+
+	status := inv.Status
+	if status == "pending" && time.Now().After(inv.ExpiresAt) {
+		status = "expired"
+	}
+
+	resp := map[string]any{
+		"status":     status,
+		"team_id":    team.ID,
+		"team_name":  team.Name,
+		"role":       inv.Role,
+		"expires_at": inv.ExpiresAt,
+	}
+	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
+}
+
 func isAllowedIcon(icon string) bool {
 	allowed := []string{"briefcase", "building", "bolt", "beaker", "book", "calendar", "chart", "code", "compass", "cpu", "database"}
 	for _, a := range allowed {
@@ -459,9 +507,10 @@ func (h *TeamsAPI) GetTeamEndpoint(w http.ResponseWriter, r *http.Request) {
 	var hasAccess bool
 
 	members := []struct {
-		ID   uint   `json:"id"`
-		Name string `json:"name"`
-		Role string `json:"role"`
+		ID    uint   `json:"id"`
+		Name  string `json:"name"`
+		Email string `json:"email"`
+		Role  string `json:"role"`
 	}{}
 
 	rolesMap, _ := h.Connection.Teams.RolesForTeam(r.Context(), uint(teamID))
@@ -473,14 +522,24 @@ func (h *TeamsAPI) GetTeamEndpoint(w http.ResponseWriter, r *http.Request) {
 		if role == "" {
 			role = "regular"
 		}
+		var nameVal string
+		if user.Name != nil {
+			nameVal = *user.Name
+		}
+		var emailVal string
+		if user.Email != nil {
+			emailVal = *user.Email
+		}
 		members = append(members, struct {
-			ID   uint   `json:"id"`
-			Name string `json:"name"`
-			Role string `json:"role"`
+			ID    uint   `json:"id"`
+			Name  string `json:"name"`
+			Email string `json:"email"`
+			Role  string `json:"role"`
 		}{
-			ID:   user.ID,
-			Name: *user.Name,
-			Role: role,
+			ID:    user.ID,
+			Name:  nameVal,
+			Email: emailVal,
+			Role:  role,
 		})
 	}
 
@@ -496,9 +555,10 @@ func (h *TeamsAPI) GetTeamEndpoint(w http.ResponseWriter, r *http.Request) {
 		Icon    string `json:"icon"`
 		OwnerID int    `json:"owner_id"`
 		Members []struct {
-			ID   uint   `json:"id"`
-			Name string `json:"name"`
-			Role string `json:"role"`
+			ID    uint   `json:"id"`
+			Name  string `json:"name"`
+			Email string `json:"email"`
+			Role  string `json:"role"`
 		} `json:"members"`
 	}{
 		ID:      team.ID,

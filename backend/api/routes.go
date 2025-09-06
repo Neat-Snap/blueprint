@@ -79,6 +79,7 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.Get("/{id}/overview", teamsAPI.GetTeamOverviewEndpoint)
 		r.Get("/{id}/invitations", teamsAPI.ListInvitationsEndpoint)
 		r.Delete("/{id}/invitations/{inv_id}", teamsAPI.RevokeInvitationEndpoint)
+		r.Post("/invitations/check", teamsAPI.CheckInvitationStatusEndpoint)
 		r.Patch("/{id}", teamsAPI.UpdateTeamNameEndpoint)
 		r.Delete("/{id}", teamsAPI.DeleteTeamEndpoint)
 		r.Post("/{id}/members", teamsAPI.AddMemberEndpoint)

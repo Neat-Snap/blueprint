@@ -34,7 +34,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       try {
         const me = await getMe();
         setUser({ name: me.name || "", email: me.email || "", avatar: "" });
-      } catch {
+      } catch (err: any) {
+        if (err && err.redirectedToVerify) {
+          return;
+        }
         router.replace("/auth/login");
         return;
       } finally {

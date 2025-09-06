@@ -7,7 +7,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white&labelColor=0b1021)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&labelColor=0b1021)](https://react.dev)
 
-> Template project I use to bootstrap new apps fast. It handles auth, teams, email, DB, and a modern frontend so I don’t start from scratch each time
+> Template project I use to bootstrap new apps fast. It handles auth, team management, frontend dashboard with basic features (notifications, account management, etc.)
 
 
 A full‑stack template with a Go (Chi + Gorm + Postgres + Redis) backend and a Next.js 15 frontend

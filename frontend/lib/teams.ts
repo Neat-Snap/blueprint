@@ -6,7 +6,7 @@ export type TeamDetail = {
   name: string;
   icon?: string;
   owner_id: number;
-  members: { id: number; name: string; role: string }[];
+  members: { id: number; name: string; email: string; role: string }[];
 };
 
 export async function listTeams(): Promise<Team[]> {
@@ -79,6 +79,19 @@ export async function createInvitation(teamId: number, email: string, role: "reg
 
 export async function acceptInvitation(token: string): Promise<{ status: string }> {
   const { data } = await api.post<{ status: string }>(`/teams/invitations/accept`, { token });
+  return data;
+}
+
+export type InvitationStatus = {
+  status: string; // pending | revoked | accepted | expired
+  team_id: number;
+  team_name: string;
+  role: string;
+  expires_at: string;
+};
+
+export async function checkInvitationStatus(token: string): Promise<InvitationStatus> {
+  const { data } = await api.post<InvitationStatus>(`/teams/invitations/check`, { token });
   return data;
 }
 

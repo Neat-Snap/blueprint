@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { confirmEmail, getMe } from "@/lib/auth";
+import { confirmEmail, resendEmail } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,23 +18,40 @@ export default function VerifyEmailPage() {
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
   const [resendCountdown, setResendCountdown] = useState<number>(60);
+  const [resending, setResending] = useState(false);
+  const [confirmationId, setConfirmationId] = useState<string>("");
 
   const confirmation_id = params.get("cid") || "";
   const email = params.get("email") || "";
 
+  // Keep local state in sync with URL param for confirmation id
+  useEffect(() => {
+    setConfirmationId(confirmation_id || "");
+  }, [confirmation_id]);
+
+  // If we have an email but no confirmation id in the URL, request a new code
+  // and update the URL to include the fresh confirmation id.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (!email || confirmation_id) return;
       try {
-        const me = await getMe();
-        if (!cancelled && (me?.id || me?.email)) {
-          router.replace("/dashboard");
+        setResending(true);
+        const res = await resendEmail(email);
+        if (!cancelled) {
+          setConfirmationId(res.confirmation_id);
+          const target = `/auth/verify?email=${encodeURIComponent(email)}&cid=${encodeURIComponent(res.confirmation_id)}`;
+          router.replace(target);
         }
-      } catch {
+      } catch (e) {
+        // Surface a friendly error; user can try using the explicit resend link
+        setError("Could not request a new code. Please try again.");
+      } finally {
+        setResending(false);
       }
     })();
     return () => { cancelled = true };
-  }, [router]);
+  }, [email, confirmation_id, router]);
 
   useEffect(() => {
     setResendCountdown(60);
@@ -55,7 +72,7 @@ export default function VerifyEmailPage() {
     setLoading(true);
     setError(null);
     try {
-      await confirmEmail(confirmation_id, code);
+      await confirmEmail(confirmationId || confirmation_id, code);
       router.push("/dashboard");
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } }; message?: string };
@@ -65,6 +82,26 @@ export default function VerifyEmailPage() {
       setTimeout(() => setShake(false), 300);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function onResend() {
+    if (!email || resending) return;
+    setResending(true);
+    setError(null);
+    try {
+      const res = await resendEmail(email);
+      setConfirmationId(res.confirmation_id);
+      setResendCountdown(60);
+      router.replace(`/auth/verify?email=${encodeURIComponent(email)}&cid=${encodeURIComponent(res.confirmation_id)}`);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = e.response?.data?.message || e.message || "Could not resend email";
+      setError(msg);
+      setShake(true);
+      setTimeout(() => setShake(false), 300);
+    } finally {
+      setResending(false);
     }
   }
 
@@ -91,19 +128,20 @@ export default function VerifyEmailPage() {
                 <p>{error}</p>
               </div>
             )}
-            <Button type="submit" className="w-full" disabled={loading || !confirmation_id}>
+            <Button type="submit" className="w-full" disabled={loading || !(confirmationId || confirmation_id)}>
               {loading ? "Verifying..." : "Verify"}
             </Button>
             <div className="text-center text-sm text-muted-foreground">
-              Didn’t receive the code? {" "}
+              Didn’t receive the code?
+              {" "}
               {resendCountdown > 0 ? (
                 <span>
                   You can resend in {Math.floor(resendCountdown / 60)}:{String(resendCountdown % 60).padStart(2, "0")}
                 </span>
               ) : (
-                <Link className="text-primary hover:underline" href={`/auth/resend?email=${encodeURIComponent(email)}`}>
-                  Resend email
-                </Link>
+                <Button type="button" variant="link" className="p-0 h-auto text-primary" onClick={onResend} disabled={resending || !email}>
+                  {resending ? "Sending…" : "Resend email"}
+                </Button>
               )}
             </div>
           </form>

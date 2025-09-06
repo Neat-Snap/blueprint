@@ -23,7 +23,7 @@ export default function TeamSettingsPanel() {
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("");
   const [ownerId, setOwnerId] = useState<number | null>(null);
-  const [members, setMembers] = useState<{ id: number; name: string; role: string }[]>([]);
+  const [members, setMembers] = useState<{ id: number; name: string; email: string; role: string }[]>([]);
   const [meId, setMeId] = useState<number | null>(null);
   
   const [inviteEmail, setInviteEmail] = useState("");
@@ -213,7 +213,7 @@ export default function TeamSettingsPanel() {
               members.map((m) => (
                 <div key={m.id} className="flex items-center justify-between rounded-md border p-2 text-sm transition-colors hover:bg-muted/40">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{m.name || `User #${m.id}`}</span>
+                    <span className="font-medium">{m.name || m.email || `User #${m.id}`}</span>
                     {ownerId === m.id ? <Badge variant="secondary" className="px-1.5 py-0 h-5">Owner</Badge> : null}
                   </div>
                   {isManager && (
