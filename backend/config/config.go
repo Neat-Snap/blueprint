@@ -41,7 +41,9 @@ type Config struct {
 	SUPPORT_EMAIL        string
 	DEVELOPER_EMAIL      string
 
-	JWT_SECRET string
+	JWT_SECRET   string
+	JWT_ISSUER   string
+	JWT_AUDIENCE string
 }
 
 func getenv(k, def string) string {
@@ -126,6 +128,8 @@ func Load() Config {
 		SUPPORT_EMAIL:        fmt.Sprintf("support@%s", getenvStrict("APP_URL")),
 		DEVELOPER_EMAIL:      getenv("DEVELOPER_EMAIL", ""),
 
-		JWT_SECRET: getenvStrict("JWT_SECRET"),
+		JWT_SECRET:   getenvStrict("JWT_SECRET"),
+		JWT_ISSUER:   getenv("JWT_ISSUER", "statgrad"),
+		JWT_AUDIENCE: getenv("JWT_AUDIENCE", "statgrad-web"),
 	}
 }

@@ -76,7 +76,7 @@ func (a *AuthAPI) MeEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email, err := utils.DecodeJWT([]byte(a.Config.JWT_SECRET), c.Value)
+	email, err := utils.DecodeJWT([]byte(a.Config.JWT_SECRET), c.Value, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
 	if err != nil {
 		http.Error(w, "invalid token", http.StatusUnauthorized)
 		return
@@ -104,9 +104,6 @@ func returnCookieToken(origin string, w http.ResponseWriter, token string, cfg c
 
 	secure := cfg.Env == "prod"
 	sameSite := http.SameSiteLaxMode
-	if secure {
-		sameSite = http.SameSiteNoneMode
-	}
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",
@@ -260,7 +257,7 @@ func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), verifiedEmail)
+	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), verifiedEmail, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
 		return
@@ -299,7 +296,7 @@ func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
 			return errors.New("invalid password")
 		}
 
-		token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), u.Email)
+		token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), u.Email, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
 		if err != nil {
 			return err
 		}
@@ -460,7 +457,7 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 		a.logger.Warn("failed to ensure default team on oauth sign-in", "error", terr)
 	}
 
-	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), *signedInUser.Email)
+	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), *signedInUser.Email, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
 		return
@@ -649,7 +646,7 @@ func (a *AuthAPI) ResetPasswordConfirmEndpoint(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), mail_address)
+	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), mail_address, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to generate token", http.StatusInternalServerError)
 		return

@@ -2,7 +2,6 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { jwtDecode } from "jwt-decode";
-import { getToken, setToken } from "./token";
 
 type Decoded = { sub?: string; email?: string; [k: string]: unknown };
 
@@ -21,7 +20,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setAuthToken = useCallback((t: string | null) => {
     _setToken(t);
-    setToken(t);
     if (t) {
       try {
         const decoded = jwtDecode<Decoded>(t);
@@ -33,11 +31,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setEmail(null);
     }
   }, []);
-
-  useEffect(() => {
-    const existing = getToken();
-    if (existing) setAuthToken(existing);
-  }, [setAuthToken]);
 
   const logout = useCallback(() => setAuthToken(null), [setAuthToken]);
 

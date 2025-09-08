@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"strings"
+
 	"github.com/Neat-Snap/blueprint-backend/config"
 	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
@@ -124,7 +126,20 @@ func (h *UsersAPI) ChangeEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userObj.Email = &req.Email
+	newEmail := utils.NormalizeEmail(req.Email)
+	if newEmail == "" || !strings.Contains(newEmail, "@") {
+		utils.WriteError(w, h.logger, errors.New("invalid email"), "invalid email", http.StatusBadRequest)
+		return
+	}
+
+	if existing, err := h.Connection.Users.ByEmail(r.Context(), newEmail); err == nil {
+		if existing.ID != userObj.ID {
+			utils.WriteError(w, h.logger, errors.New("email already in use"), "Email already in use", http.StatusConflict)
+			return
+		}
+	}
+
+	userObj.Email = &newEmail
 	userObj.EmailVerifiedAt = nil
 
 	err = h.Connection.Auth.DeleteAuthIdentity(r.Context(), userObj.ID)
@@ -194,7 +209,7 @@ func (h *UsersAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	token, err := utils.GenerateJWT([]byte(h.RedisSecret), verifiedEmail)
+	token, err := utils.GenerateJWT([]byte(h.Config.JWT_SECRET), verifiedEmail, h.Config.JWT_ISSUER, h.Config.JWT_AUDIENCE)
 	if err != nil {
 		utils.WriteError(w, h.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
 		return

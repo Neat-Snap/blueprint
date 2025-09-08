@@ -45,7 +45,7 @@ func DefaultSkipper(r *http.Request) bool {
 	return false
 }
 
-func AuthMiddlewareBuilder(secret string, logger logger.MultiLogger, conn *db.Connection, skipFunc MiddlewareSkipper) func(http.Handler) http.Handler {
+func AuthMiddlewareBuilder(secret string, issuer string, audience string, logger logger.MultiLogger, conn *db.Connection, skipFunc MiddlewareSkipper) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			logger.Debug("auth: processing auth header with middleware")
@@ -69,9 +69,9 @@ func AuthMiddlewareBuilder(secret string, logger logger.MultiLogger, conn *db.Co
 				return
 			}
 
-			email, err := utils.DecodeJWT([]byte(secret), token)
+			email, err := utils.DecodeJWT([]byte(secret), token, issuer, audience)
 			if err != nil {
-				logger.Error("auth: error during jwt decoding", "error", err)
+				logger.Debug("auth: error during jwt decoding", "error", err)
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
@@ -81,9 +81,9 @@ func AuthMiddlewareBuilder(secret string, logger logger.MultiLogger, conn *db.Co
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					logger.Debug("auth: record for email was not found in the database during middleware check", "email", email)
 				} else {
-					logger.Error("auth: error occured in the middleware", "error", err)
+					logger.Debug("auth: error occured in the middleware", "error", err)
 				}
-				logger.Error("error")
+				logger.Debug("auth: error occured in the middleware")
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}

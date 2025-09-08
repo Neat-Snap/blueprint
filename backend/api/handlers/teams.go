@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -103,14 +105,13 @@ func (h *TeamsAPI) ListInvitationsEndpoint(w http.ResponseWriter, r *http.Reques
 		ID        uint      `json:"id"`
 		Email     string    `json:"email"`
 		Role      string    `json:"role"`
-		Token     string    `json:"token"`
 		Status    string    `json:"status"`
 		CreatedAt time.Time `json:"created_at"`
 		ExpiresAt time.Time `json:"expires_at"`
 	}
 	resp := make([]item, 0, len(list))
 	for _, i := range list {
-		resp = append(resp, item{ID: i.ID, Email: i.Email, Role: i.Role, Token: i.Token, Status: i.Status, CreatedAt: i.CreatedAt, ExpiresAt: i.ExpiresAt})
+		resp = append(resp, item{ID: i.ID, Email: i.Email, Role: i.Role, Status: i.Status, CreatedAt: i.CreatedAt, ExpiresAt: i.ExpiresAt})
 	}
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }
@@ -287,7 +288,6 @@ func (h *TeamsAPI) AcceptInvitationEndpoint(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Fetch team to include helpful context in the response
 	team, terr := h.Connection.Teams.ByID(r.Context(), inv.TeamID)
 	if terr != nil {
 		utils.WriteError(w, h.logger, terr, "failed to get team", http.StatusInternalServerError)
@@ -361,12 +361,11 @@ func isAllowedIcon(icon string) bool {
 }
 
 func generateToken() string {
-	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, 32)
-	for i := range b {
-		b[i] = letters[time.Now().UnixNano()%int64(len(letters))]
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
 	}
-	return string(b)
+	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 // GET /teams/{id}/overview

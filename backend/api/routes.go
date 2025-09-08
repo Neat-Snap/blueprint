@@ -42,7 +42,7 @@ func NewRouter(c RouterConfig) chi.Router {
 		httprate.WithKeyFuncs(httprate.KeyByIP, httprate.KeyByEndpoint),
 	))
 
-	r.Use(mw.AuthMiddlewareBuilder(c.Config.JWT_SECRET, c.Logger, c.Connection, mw.DefaultSkipper))
+	r.Use(mw.AuthMiddlewareBuilder(c.Config.JWT_SECRET, c.Config.JWT_ISSUER, c.Config.JWT_AUDIENCE, c.Logger, c.Connection, mw.DefaultSkipper))
 
 	api := handlers.NewTestHealthAPI(c.DB, c.Logger)
 	r.Get("/health", api.HealthHandler)

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -43,7 +44,7 @@ type argonParams struct {
 }
 
 var DefaultArgon = argonParams{
-	Time:    1,
+	Time:    2,
 	Memory:  64 * 1024,
 	Threads: 1,
 	SaltLen: 16,
@@ -164,10 +165,14 @@ func ResetPassword(ctx context.Context, store *db.Connection, email, password st
 	return store.Auth.EnsurePasswordCredential(ctx, u.ID, hash)
 }
 
-func GenerateJWT(secret []byte, email string) (string, error) {
+func GenerateJWT(secret []byte, email string, iss string, aud string) (string, error) {
+	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": email,
-		"exp":   time.Now().Add(time.Hour * 24 * 21).Unix(),
+		"iat":   now.Unix(),
+		"iss":   iss,
+		"aud":   aud,
+		"exp":   now.Add(21 * 24 * time.Hour).Unix(),
 	})
 
 	tokenString, err := token.SignedString(secret)
@@ -177,19 +182,66 @@ func GenerateJWT(secret []byte, email string) (string, error) {
 	return tokenString, nil
 }
 
-func DecodeJWT(secret []byte, token string) (string, error) {
+func DecodeJWT(secret []byte, tokenStr string, iss string, aud string) (string, error) {
 	claims := jwt.MapClaims{}
-	_, err := jwt.ParseWithClaims(token, &claims, func(token *jwt.Token) (interface{}, error) {
+	parsed, err := jwt.ParseWithClaims(tokenStr, &claims, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
 		return secret, nil
 	})
-	if err != nil {
+	if err != nil || !parsed.Valid {
+		if err == nil {
+			err = fmt.Errorf("invalid token")
+		}
 		return "", err
+	}
+
+	now := time.Now().Unix()
+	if expVal, ok := claims["exp"]; ok {
+		switch v := expVal.(type) {
+		case float64:
+			if int64(v) < now {
+				return "", fmt.Errorf("token expired")
+			}
+		case json.Number:
+			if n, err := v.Int64(); err == nil && n < now {
+				return "", fmt.Errorf("token expired")
+			}
+		}
+	}
+
+	if issVal, ok := claims["iss"].(string); !ok || issVal != iss {
+		return "", fmt.Errorf("invalid issuer")
+	}
+
+	switch audVal := claims["aud"].(type) {
+	case string:
+		if audVal != aud {
+			return "", fmt.Errorf("invalid audience")
+		}
+	case []interface{}:
+		found := false
+		for _, a := range audVal {
+			if s, ok := a.(string); ok && s == aud {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return "", fmt.Errorf("invalid audience")
+		}
+	default:
+		return "", fmt.Errorf("invalid audience")
 	}
 
 	sub, ok := claims["email"]
 	if !ok {
 		return "", fmt.Errorf("the email subject was not found in jwt")
 	}
-
-	return sub.(string), nil
+	s, ok := sub.(string)
+	if !ok || s == "" {
+		return "", fmt.Errorf("invalid email claim")
+	}
+	return s, nil
 }

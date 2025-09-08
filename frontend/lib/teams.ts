@@ -99,7 +99,7 @@ export type TeamInvitation = {
   id: number;
   email: string;
   role: "regular" | "admin" | string;
-  token: string;
+  token?: string;
   status: string;
   created_at: string;
   expires_at: string;
