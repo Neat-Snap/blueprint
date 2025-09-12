@@ -200,7 +200,7 @@ export default function AccountPage() {
                 }
               }}
             >
-              <SelectTrigger className="w-[130px]">
+              <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder={t("theme.placeholder")} />
               </SelectTrigger>
               <SelectContent>
@@ -245,7 +245,7 @@ export default function AccountPage() {
                 router.refresh();
               }}
             >
-              <SelectTrigger className="w-[130px]">
+              <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder={t("language.placeholder")} />
               </SelectTrigger>
               <SelectContent>

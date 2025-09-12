@@ -1,6 +1,6 @@
 import { cookies, headers } from "next/headers";
 
-export const locales = ["en", "es", "de", "fr"] as const;
+export const locales = ["en", "ru", "zh"] as const;
 export type Locale = typeof locales[number];
 export const defaultLocale: Locale = "en";
 
@@ -20,12 +20,10 @@ export async function resolveLocale(): Promise<Locale> {
 
 export async function loadMessages(locale: Locale) {
   switch (locale) {
-    case "es":
-      return (await import("./messages/es.json")).default;
-    case "de":
-      return (await import("./messages/de.json")).default;
-    case "fr":
-      return (await import("./messages/fr.json")).default;
+    case "ru":
+      return (await import("./messages/ru.json")).default;
+    case "zh":
+      return (await import("./messages/zh.json")).default;
     default:
       return (await import("./messages/en.json")).default;
   }

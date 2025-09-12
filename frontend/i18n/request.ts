@@ -1,7 +1,7 @@
 import {getRequestConfig} from 'next-intl/server';
 import {cookies, headers} from 'next/headers';
 
-const SUPPORTED = new Set(['en', 'ru', 'zh', 'es', 'de', 'fr']);
+const SUPPORTED = new Set(['en', 'ru', 'zh']);
 
 export default getRequestConfig(async () => {
   // Prefer user-set cookie

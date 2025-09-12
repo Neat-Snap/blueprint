@@ -139,6 +139,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
 function TeamSwitchOverlay() {
   const { switching } = useTeam();
+  const t = useTranslations('Layout');
   if (!switching) return null;
-  return <LoadingScreen label="Switching team" immediate />;
+  return <LoadingScreen label={t('switchingTeam')} immediate />;
 }
