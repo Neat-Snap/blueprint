@@ -50,6 +50,7 @@ func AuthMiddlewareBuilder(secret string, issuer string, audience string, logger
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			logger.Debug("auth: processing auth header with middleware")
 			if skipFunc != nil && skipFunc(r) {
+				logger.Debug("auth: skipping auth middleware")
 				next.ServeHTTP(w, r)
 				return
 			}

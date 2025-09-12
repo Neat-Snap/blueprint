@@ -103,7 +103,7 @@ func returnCookieToken(origin string, w http.ResponseWriter, token string, cfg c
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 	secure := cfg.Env == "prod"
-	sameSite := http.SameSiteLaxMode
+	sameSite := http.SameSiteStrictMode
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",
@@ -328,7 +328,7 @@ func (a *AuthAPI) ProviderBeginAuthEndpoint(w http.ResponseWriter, r *http.Reque
 func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Request) {
 	u, err := gothic.CompleteUserAuth(w, r)
 	if err != nil {
-		a.logger.Error("failed to complete auth", "error", err)
+		a.logger.Error("failed to complete auth...", "error", err)
 		utils.WriteError(w, a.logger, err, "Authentication failed", http.StatusUnauthorized)
 		return
 	}
@@ -425,7 +425,7 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 	})
 
 	if err != nil {
-		a.logger.Error("failed to complete auth", "error", err)
+		a.logger.Error("failed to complete auth with provider "+provider, "error", err)
 		http.Error(w, "auth failed: "+err.Error(), http.StatusUnauthorized)
 		return
 	}
@@ -478,7 +478,7 @@ func (a *AuthAPI) LogoutEndpoint(w http.ResponseWriter, r *http.Request) {
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	w.WriteHeader(http.StatusOK)
