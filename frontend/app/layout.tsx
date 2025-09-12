@@ -4,6 +4,10 @@ import { Providers } from "./providers";
 import "./globals.css";
 import { Suspense } from "react";
 import LoadingFallback from "@/components/loading-fallback";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
+import LocaleBootstrapper from "@/components/locale-bootstrapper";
+import LocaleGate from "@/components/locale-gate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,12 +25,22 @@ export const metadata: Metadata = {
 };
 
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Suspense fallback={<LoadingFallback label="Loading" />}>
-          <Providers>{children}</Providers>
+          <NextIntlClientProvider locale={locale} messages={messages}>
+            <Providers>
+              <LocaleBootstrapper />
+              <LocaleGate>
+                {children}
+              </LocaleGate>
+            </Providers>
+          </NextIntlClientProvider>
         </Suspense>
       </body>
     </html>

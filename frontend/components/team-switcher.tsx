@@ -11,8 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ALLOWED_TEAM_ICONS, renderTeamIcon } from "@/lib/icons";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 export function TeamSwitcher() {
+  const t = useTranslations('TeamSwitcher');
   const { current, all, switchTo, createTeam } = useTeam();
   const { isMobile } = useSidebar();
   const [openCreate, setOpenCreate] = useState(false);
@@ -53,9 +55,9 @@ export function TeamSwitcher() {
       setOpenCreate(false);
       setName("");
       setIcon("");
-      toast.success("Team created");
+      toast.success(t('toast.created'));
     } catch {
-      toast.error("Could not create team. Please try again or contact support@statgrad.app.");
+      toast.error(t('toast.createFailed'));
     } finally {
       setCreating(false);
     }
@@ -79,8 +81,8 @@ export function TeamSwitcher() {
                   )}
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{current?.name || "Select team"}</span>
-                  <span className="truncate text-xs">{all.length === 1 ? "Free" : `${all.length} teams`}</span>
+                  <span className="truncate font-medium">{current?.name || t('selectTeam')}</span>
+                  <span className="truncate text-xs">{all.length === 1 ? t('planFree') : t('teamsCount', { count: all.length })}</span>
                 </div>
                 <ChevronsUpDown className="ml-auto" />
               </SidebarMenuButton>
@@ -91,7 +93,7 @@ export function TeamSwitcher() {
               side={isMobile ? "bottom" : "right"}
               sideOffset={4}
             >
-              <DropdownMenuLabel className="text-muted-foreground text-xs">Teams</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-muted-foreground text-xs">{t('teams')}</DropdownMenuLabel>
               {all.map((w: { id: number; name: string; icon?: string }, index: number) => {
                 const badge = (w.icon && w.icon.trim()) ? w.icon.trim() : (w.name?.slice(0, 2).toUpperCase());
                 return (
@@ -111,7 +113,7 @@ export function TeamSwitcher() {
                 <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
                   <Plus className="size-4" />
                 </div>
-                <div className="text-muted-foreground font-medium">Add team</div>
+                <div className="text-muted-foreground font-medium">{t('addTeam')}</div>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -122,31 +124,31 @@ export function TeamSwitcher() {
       <Dialog open={openCreate} onOpenChange={setOpenCreate}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create team</DialogTitle>
+            <DialogTitle>{t('create.title')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t('create.nameLabel')}</Label>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIconOpen(true)}
                   className={`flex h-9 w-9 items-center justify-center rounded-md border transition-colors ${icon ? "border-ring bg-accent/40" : "hover:bg-muted"}`}
-                  aria-label="Choose icon"
+                  aria-label={t('create.chooseIcon')}
                 >
                   {icon ? (
                     renderTeamIcon(icon, "size-4")
                   ) : (
                     <span className="text-[11px] font-medium">
-                      {(name.trim() ? name.trim().slice(0, 2) : "TM").toUpperCase()}
+                      {(name.trim() ? name.trim().slice(0, 2) : t('create.initialsFallback')).toUpperCase()}
                     </span>
                   )}
                 </button>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="My team" />
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('create.namePlaceholder')} />
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={creating}>{creating ? "Creating..." : "Create"}</Button>
+              <Button type="submit" disabled={creating}>{creating ? t('create.creating') : t('create.create')}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -156,7 +158,7 @@ export function TeamSwitcher() {
       <Dialog open={iconOpen} onOpenChange={setIconOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Select icon</DialogTitle>
+            <DialogTitle>{t('icon.title')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">

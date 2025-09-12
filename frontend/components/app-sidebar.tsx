@@ -17,6 +17,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { useTranslations } from "next-intl"
 
 export type NavMainItem = {
   title: string
@@ -48,6 +49,7 @@ export type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 }
 
 export function AppSidebar({ org, user, navMain, projects = [], navSecondary = [], headerSlot, ...props }: AppSidebarProps) {
+  const t = useTranslations('Sidebar')
   return (
     <Sidebar variant="inset" collapsible="icon" {...props}>
       <SidebarHeader>
@@ -62,8 +64,8 @@ export function AppSidebar({ org, user, navMain, projects = [], navSecondary = [
                     <Command className="size-4" />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">{org?.name || "Team"}</span>
-                    <span className="truncate text-xs">{org?.plan || "Free"}</span>
+                    <span className="truncate font-medium">{org?.name || t('team')}</span>
+                    <span className="truncate text-xs">{org?.plan || t('planFree')}</span>
                   </div>
                 </Link>
               </SidebarMenuButton>

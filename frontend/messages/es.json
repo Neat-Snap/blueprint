@@ -1,0 +1,25 @@
+{
+  "Account": {
+    "title": "Configuración de la cuenta",
+    "subtitle": "Administra tu perfil, correo y seguridad.",
+    "tabs": {
+      "app": "Ajustes de la app",
+      "profile": "Perfil",
+      "email": "Correo",
+      "security": "Seguridad"
+    },
+    "theme": {
+      "label": "Tema",
+      "system": "Sistema",
+      "light": "Claro",
+      "dark": "Oscuro",
+      "followsSystem": "Sigue al sistema ({mode})",
+      "using": "Usando tema {mode}",
+      "updated": "Tema actualizado"
+    },
+    "language": {
+      "label": "Idioma",
+      "desc": "Elige tu idioma preferido"
+    }
+  }
+}

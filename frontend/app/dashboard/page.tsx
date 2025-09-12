@@ -7,8 +7,10 @@ import { getTeamOverview, type TeamOverview } from "@/lib/teams";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { listInvitations } from "@/lib/teams";
+import { useTranslations } from "next-intl";
 
 export default function DashboardPage() {
+  const t = useTranslations('Dashboard');
   const { current } = useTeam();
   const [loading, setLoading] = useState(true);
   const [teamOverview, setTeamOverview] = useState<TeamOverview | null>(null);
@@ -40,11 +42,11 @@ export default function DashboardPage() {
   if (!current) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold">No team selected</h1>
-        <p className="text-sm text-muted-foreground">Select or create a team to see its overview.</p>
+        <h1 className="text-2xl font-bold">{t('noTeamTitle')}</h1>
+        <p className="text-sm text-muted-foreground">{t('noTeamDesc')}</p>
         <div>
           <Button asChild>
-            <Link href="/dashboard/settings">Create team</Link>
+            <Link href="/dashboard/settings">{t('createTeam')}</Link>
           </Button>
         </div>
       </div>
@@ -54,14 +56,14 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">{teamOverview?.team.name || "Team"} overview</h1>
-        <p className="text-muted-foreground">Key metrics for this team.</p>
+        <h1 className="text-2xl font-bold">{t('titleWithTeam', { team: teamOverview?.team.name || 'Team' })}</h1>
+        <p className="text-muted-foreground">{t('subtitle')}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>Members</CardTitle>
+            <CardTitle>{t('members')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-semibold">{teamOverview?.stats.members_count ?? 0}</div>
@@ -70,12 +72,12 @@ export default function DashboardPage() {
         {pendingInvites > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Pending invitations</CardTitle>
+              <CardTitle>{t('pendingInvitations')}</CardTitle>
             </CardHeader>
             <CardContent className="flex items-end justify-between gap-3">
               <div className="text-3xl font-semibold">{pendingInvites}</div>
               <Button asChild variant="outline">
-                <Link href={`/dashboard/settings`}>Manage</Link>
+                <Link href={`/dashboard/settings`}>{t('manage')}</Link>
               </Button>
             </CardContent>
           </Card>

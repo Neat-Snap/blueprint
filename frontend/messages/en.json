@@ -1,0 +1,346 @@
+{
+  "Account": {
+    "title": "Account settings",
+    "subtitle": "Manage your profile, email, and security.",
+    "tabs": {
+      "app": "App Settings",
+      "profile": "Profile",
+      "email": "Email",
+      "security": "Security"
+    },
+    "theme": {
+      "label": "Theme",
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark",
+      "followsSystem": "Follows system ({mode})",
+      "using": "Using {mode} theme",
+      "updated": "Theme updated",
+      "updateFailed": "Could not update theme. Please try again.",
+      "placeholder": "Select theme"
+    },
+    "language": {
+      "label": "Language",
+      "desc": "Choose your preferred language",
+      "placeholder": "Select language",
+      "updated": "Language updated",
+      "updateFailed": "Could not update language on server"
+    },
+    "common": {
+      "change": "Change",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "back": "Back"
+    },
+    "profile": {
+      "displayName": "Display name",
+      "displayNameDesc": "Update the name shown across the app.",
+      "nameUpdated": "Name updated",
+      "avatarUpdated": "Avatar updated",
+      "avatarUrl": "Avatar URL",
+      "avatarUrlDesc": "Change your profile picture URL.",
+      "editTitle": "Edit display name",
+      "editDesc": "Update your display name.",
+      "nameLabel": "Name",
+      "avatarTitle": "Change avatar URL",
+      "avatarDesc": "Provide a direct link to your profile image."
+    },
+    "email": {
+      "title": "Change email",
+      "desc": "Start email change and confirm with code.",
+      "dialogTitle": "Change email",
+      "dialogDesc": "Start email change and confirm using the code sent to your new address.",
+      "newLabel": "New email",
+      "sendCode": "Send code",
+      "sendingCode": "Sending code...",
+      "codeLabel": "Confirmation code",
+      "codePlaceholder": "Enter the code",
+      "confirm": "Confirm",
+      "confirming": "Confirming...",
+      "updated": "Email updated",
+      "codeSent": "Verification code sent",
+      "startFailed": "Could not start email change. Please try again or contact {email}.",
+      "confirmFailed": "Could not confirm email. Please try again or contact {email}."
+    },
+    "security": {
+      "title": "Change password",
+      "desc": "Set a new account password.",
+      "dialogTitle": "Change password",
+      "dialogDesc": "Enter your current and new password.",
+      "current": "Current password",
+      "new": "New password",
+      "changing": "Changing...",
+      "passwordChanged": "Password changed",
+      "changeFailed": "Could not change password. Please try again or contact {email}."
+    }
+  ,
+  "Help": {
+    "title": "Help Center",
+    "subtitle": "Answers to common questions, setup guides, and ways to get in touch.",
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "q1": {
+        "q": "How do I create or join a team?",
+        "a": "Owners can create teams from the Team switcher. To join, accept an email invitation from an owner or admin. Invitations also appear in your Notifications."
+      },
+      "q2": {
+        "q": "What are the team roles?",
+        "a": "Roles are owner, admin, and regular. Owners can manage billing, deletion, and member roles. Admins manage settings and members (except roles). Regular users have standard access."
+      },
+      "q3": {
+        "q": "How can I change a member's role?",
+        "a": "Only the team owner can change roles in <strong>Settings → Members</strong> using the role dropdown next to each member."
+      },
+      "q4": {
+        "q": "I didn’t receive an email",
+        "a": "Check spam, then verify your email is correct in Account settings. You can re-send confirmation emails. If issues persist, contact support."
+      },
+      "q5": {
+        "q": "How do I report a bug or request a feature?",
+        "a": "Use the <strong>Feedback</strong> button in the top bar. Provide steps to reproduce or your feature idea for quickest turnaround."
+      }
+    },
+    "quick": {
+      "title": "Quick Start",
+      "step1": "Create or pick a team from the switcher in the sidebar.",
+      "step2": "Invite teammates from <strong>Settings → Members</strong>.",
+      "step3": "Assign roles and configure team settings.",
+      "step4": "Explore the Dashboard to track activity and notifications.",
+      "tip": "Tip: Use ⌘/Ctrl + 1..9 to quickly switch teams."
+    },
+    "account": {
+      "title": "Account & Billing",
+      "item1": {
+        "title": "Change email or password",
+        "body": "Update these in Account settings. You’ll need to confirm email changes via a verification link."
+      },
+      "item2": {
+        "title": "Managing members",
+        "body": "Owners and admins can invite/remove members. Only owners can change roles and delete the team."
+      },
+      "item3": {
+        "title": "Exporting data",
+        "body": "Contact support via Feedback to request data exports while we finalize in-app export tools."
+      }
+    },
+    "resources": {
+      "title": "Resources",
+      "item1": "Product updates: see Dashboard notifications",
+      "item2": "Status: surfaced in-app if there are issues",
+      "item3": "Security: we use email confirmation and session protection"
+    },
+    "contact": {
+      "title": "Contact",
+      "lead": "Can’t find what you need? Use the Feedback button in the top bar to reach us.",
+      "item1": "Support: configured via <code>SUPPORT_EMAIL</code>",
+      "item2": "Developers: optionally via <code>DEVELOPER_EMAIL</code>"
+    }
+  }
+  }
+  ,
+  "Sidebar": {
+    "team": "Team",
+    "planFree": "Free",
+    "platform": "Platform",
+    "toggle": "Toggle"
+  },
+  "Dashboard": {
+    "noTeamTitle": "No team selected",
+    "noTeamDesc": "Select or create a team to see its overview.",
+    "createTeam": "Create team",
+    "titleWithTeam": "{team} overview",
+    "subtitle": "Key metrics for this team.",
+    "members": "Members",
+    "pendingInvitations": "Pending invitations",
+    "manage": "Manage"
+  },
+  "Notifications": {
+    "title": "Notifications",
+    "subtitle": "Manage your notifications.",
+    "inbox": "Inbox",
+    "unread": "Unread ({count})",
+    "read": "Read ({count})",
+    "toggle": "Toggle",
+    "teamInvitation": "Team invitation",
+    "genericType": "Notification",
+    "invitedToTeam": "You were invited to {team}",
+    "haveInvitation": "You have a team invitation",
+    "badgeAccepted": "Accepted",
+    "badgeExpired": "Expired",
+    "badgeRevoked": "Revoked",
+    "btnAccept": "Accept",
+    "btnRead": "Read",
+    "detailTeam": "Team:",
+    "detailRole": "Role:",
+    "roleRegular": "regular",
+    "noDetails": "No additional details.",
+    "allCaughtUp": "You're all caught up.",
+    "toastAccepted": "Invitation accepted",
+    "toastAcceptedDesc": "You're now a member of {team}."
+  }
+  ,
+  "UserMenu": {
+    "upgrade": "Upgrade to Pro",
+    "account": "Account",
+    "billing": "Billing",
+    "notifications": "Notifications",
+    "logout": "Log out"
+  }
+  ,
+  "TeamSettings": {
+    "toast": {
+      "teamUpdated": "Team updated",
+      "teamUpdateFailed": "Could not update team. Please try again or contact {email}.",
+      "invitationSent": "Invitation sent",
+      "invitationFailed": "Could not send invitation. Please try again or contact {email}.",
+      "invitationRevoked": "Invitation revoked",
+      "invitationRevokeFailed": "Could not revoke invitation. Please try again or contact {email}.",
+      "memberRemoved": "Member removed",
+      "memberRemoveFailed": "Could not remove member. Please try again or contact {email}.",
+      "roleUpdated": "Role updated",
+      "roleUpdateFailed": "Could not update role. Please try again or contact {email}.",
+      "teamDeleted": "Team deleted",
+      "teamDeleteFailed": "Could not delete team. Please try again or contact {email}."
+    },
+    "noTeamSelected": "Select a team from the header to manage settings.",
+    "tabs": {
+      "naming": "Naming",
+      "members": "Members",
+      "danger": "Danger"
+    },
+    "naming": {
+      "teamName": "Team name",
+      "teamNameDesc": "Rename this team.",
+      "teamIcon": "Team icon"
+    },
+    "members": {
+      "title": "Members and pending invitations",
+      "invite": "Invite",
+      "user": "User",
+      "owner": "Owner",
+      "roleRegular": "Regular",
+      "roleAdmin": "Admin",
+      "remove": "Remove",
+      "none": "No members.",
+      "pendingInvitations": "Pending invitations",
+      "expires": "Expires {date}",
+      "revoke": "Revoke",
+      "noPending": "No pending invitations."
+    },
+    "danger": {
+      "deleteTitle": "Delete team",
+      "deleteDesc": "This action cannot be undone."
+    },
+    "dialogs": {
+      "rename": {
+        "title": "Rename team",
+        "desc": "Update the team name.",
+        "nameLabel": "Name",
+        "namePlaceholder": "Acme Corp"
+      },
+      "icon": {
+        "title": "Select icon",
+        "desc": "Choose an icon for this team."
+      },
+      "invite": {
+        "title": "Invite member",
+        "desc": "Send an invitation by email.",
+        "emailLabel": "Invite by email",
+        "roleLabel": "Role",
+        "roleRegular": "Regular",
+        "roleRegularDesc": "Can view and edit team content. Cannot manage members or delete team.",
+        "roleAdmin": "Admin",
+        "roleAdminDesc": "Can manage members and invitations, and edit team settings.",
+        "send": "Send invitation"
+      },
+      "delete": {
+        "title": "Delete team?",
+        "desc": "This action cannot be undone. All data for this team will be permanently removed."
+      },
+      "remove": {
+        "title": "Remove member?",
+        "desc": "This user will lose access to this team."
+      }
+    },
+    "common": {
+      "rename": "Rename",
+      "change": "Change",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "delete": "Delete",
+      "sending": "Sending..."
+    }
+  }
+  ,
+  "Auth": {
+    "Login": {
+      "title": "Welcome back",
+      "subtitle": "Login with your Google account or email",
+      "continueWithGoogle": "Continue with Google",
+      "orContinueWith": "Or continue with",
+      "email": "Email",
+      "password": "Password",
+      "forgotPassword": "Forgot your password?",
+      "hidePassword": "Hide password",
+      "showPassword": "Show password",
+      "errors": {
+        "invalidCredentials": "Invalid email or password",
+        "signInFailed": "Sign in failed"
+      },
+      "signingIn": "Signing in...",
+      "login": "Login",
+      "noAccount": "Don't have an account?",
+      "signUp": "Sign up",
+      "terms": "By clicking continue, you agree to our <tos>Terms of Service</tos> and <pp>Privacy Policy</pp>."
+    }
+  }
+  ,
+  "SettingsPage": {
+    "title": "Team settings",
+    "subtitle": "Manage the current team name, members, roles, and deletion."
+  }
+  ,
+  "Layout": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "settings": "Settings"
+    },
+    "help": "Help",
+    "feedback": "Feedback",
+    "feedbackSend": "Send feedback",
+    "feedbackMessage": "Message",
+    "feedbackPlaceholder": "Tell us what's on your mind…",
+    "cancel": "Cancel",
+    "sending": "Sending…",
+    "send": "Send",
+    "loadingDashboard": "Loading Dashboard",
+    "user": { "fallbackName": "User" },
+    "feedbackRateLimited": "Daily feedback limit reached. Please try again tomorrow.",
+    "feedbackSendFailed": "Could not send feedback. Please try again later or contact support@statgrad.app.",
+    "feedbackThanks": "Thanks for your feedback!"
+  }
+  ,
+  "TeamSwitcher": {
+    "selectTeam": "Select team",
+    "planFree": "Free",
+    "teamsCount": "{count} teams",
+    "teams": "Teams",
+    "addTeam": "Add team",
+    "create": {
+      "title": "Create team",
+      "nameLabel": "Name",
+      "chooseIcon": "Choose icon",
+      "initialsFallback": "TM",
+      "namePlaceholder": "My team",
+      "creating": "Creating...",
+      "create": "Create"
+    },
+    "icon": { "title": "Select icon" },
+    "toast": {
+      "created": "Team created",
+      "createFailed": "Could not create team. Please try again or contact support@statgrad.app."
+    }
+  }
+}

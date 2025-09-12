@@ -21,6 +21,7 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import { listNotifications } from "@/lib/notifications"
+import { useTranslations } from "next-intl"
 
 export function NavMain({
   items,
@@ -37,6 +38,7 @@ export function NavMain({
   }[]
 }) {
   const [unreadCount, setUnreadCount] = useState(0)
+  const t = useTranslations('Sidebar')
 
   useEffect(() => {
     let mounted = true
@@ -54,7 +56,7 @@ export function NavMain({
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Platform</SidebarGroupLabel>
+      <SidebarGroupLabel>{t('platform')}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
           <Collapsible key={item.title} asChild defaultOpen={item.isActive}>
@@ -73,7 +75,7 @@ export function NavMain({
                   <CollapsibleTrigger asChild>
                     <SidebarMenuAction className="data-[state=open]:rotate-90">
                       <ChevronRight />
-                      <span className="sr-only">Toggle</span>
+                      <span className="sr-only">{t('toggle')}</span>
                     </SidebarMenuAction>
                   </CollapsibleTrigger>
                   <CollapsibleContent>

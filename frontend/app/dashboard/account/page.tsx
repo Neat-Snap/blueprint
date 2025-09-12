@@ -6,14 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { changeEmail, changePassword, confirmEmail, updateProfile, getPreferences, updateTheme } from "@/lib/account";
+import { changeEmail, changePassword, confirmEmail, updateProfile, getPreferences, updateTheme, updateLanguage } from "@/lib/account";
 import { toast } from "sonner";
 import { User as UserIcon, Mail, Lock, Settings as SettingsIcon, Sun, Moon, Languages, Laptop } from "lucide-react";
 import { getMe } from "@/lib/auth";
 import { useTheme } from "next-themes";
+import { useRouter, usePathname } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useTranslations, useLocale } from "next-intl";
 
 export default function AccountPage() {
+  const t = useTranslations("Account");
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -22,6 +25,10 @@ export default function AccountPage() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [appTheme, setAppTheme] = useState<"light" | "dark" | "system">("system");
   const [language, setLanguage] = useState<string>("en");
+  const router = useRouter();
+  const pathname = usePathname();
+  const [langUpdating, setLangUpdating] = useState(false);
+  const activeLocale = useLocale();
 
   const [newEmail, setNewEmail] = useState("");
   const [emailConfirmationId, setEmailConfirmationId] = useState<string | null>(null);
@@ -52,7 +59,11 @@ export default function AccountPage() {
           const initialTheme = (prefs.theme || "system") as "light" | "dark" | "system";
           setAppTheme(initialTheme);
           setTheme(initialTheme);
-          if (prefs.language) setLanguage(prefs.language);
+          if (prefs.language) {
+            setLanguage(prefs.language);
+          } else if (activeLocale) {
+            setLanguage(activeLocale);
+          }
         } catch {
           const current = (theme || "system") as "light" | "dark" | "system";
           setAppTheme(current);
@@ -61,7 +72,7 @@ export default function AccountPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [activeLocale]);
 
   const SUPPORT_EMAIL = "support@statgrad.app";
 
@@ -71,7 +82,7 @@ export default function AccountPage() {
     try {
       await updateProfile(profileName.trim(), avatarUrl.trim());
       setNameOpen(false);
-      toast.success("Name updated");
+      toast.success(t("profile.nameUpdated"));
     } finally {
       setSavingProfile(false);
     }
@@ -83,7 +94,7 @@ export default function AccountPage() {
     try {
       await updateProfile(profileName.trim(), avatarUrl.trim());
       setAvatarOpen(false);
-      toast.success("Avatar updated");
+      toast.success(t("profile.avatarUpdated"));
     } finally {
       setSavingProfile(false);
     }
@@ -96,9 +107,9 @@ export default function AccountPage() {
     try {
       const { confirmation_id } = await changeEmail(newEmail.trim());
       setEmailConfirmationId(confirmation_id);
-      toast.success("Verification code sent");
+      toast.success(t("email.codeSent"));
     } catch {
-      toast.error(`Could not start email change. Please try again or contact ${SUPPORT_EMAIL}.`);
+      toast.error(t("email.startFailed", { email: SUPPORT_EMAIL }));
     } finally {
       setEmailChanging(false);
     }
@@ -113,9 +124,9 @@ export default function AccountPage() {
       setEmailCode("");
       setEmailConfirmationId(null);
       setEmailOpen(false);
-      toast.success("Email updated");
+      toast.success(t("email.updated"));
     } catch {
-      toast.error(`Could not confirm email. Please try again or contact ${SUPPORT_EMAIL}.`);
+      toast.error(t("email.confirmFailed", { email: SUPPORT_EMAIL }));
     } finally {
       setEmailConfirming(false);
     }
@@ -130,9 +141,9 @@ export default function AccountPage() {
       setCurrentPassword("");
       setNewPassword("");
       setPasswordOpen(false);
-      toast.success("Password changed");
+      toast.success(t("security.passwordChanged"));
     } catch {
-      toast.error(`Could not change password. Please try again or contact ${SUPPORT_EMAIL}.`);
+      toast.error(t("security.changeFailed", { email: SUPPORT_EMAIL }));
     } finally {
       setPasswordChanging(false);
     }
@@ -143,16 +154,16 @@ export default function AccountPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Account settings</h1>
-        <p className="text-muted-foreground text-sm">Manage your profile, email, and security.</p>
+        <h1 className="text-2xl font-bold">{t("title")}</h1>
+        <p className="text-muted-foreground text-sm">{t("subtitle")}</p>
       </div>
 
       <Tabs defaultValue="app">
         <TabsList>
-          <TabsTrigger value="app" className="inline-flex items-center gap-2"><SettingsIcon className="h-4 w-4" /> App Settings</TabsTrigger>
-          <TabsTrigger value="profile" className="inline-flex items-center gap-2"><UserIcon className="h-4 w-4" /> Profile</TabsTrigger>
-          <TabsTrigger value="email" className="inline-flex items-center gap-2"><Mail className="h-4 w-4" /> Email</TabsTrigger>
-          <TabsTrigger value="security" className="inline-flex items-center gap-2"><Lock className="h-4 w-4" /> Security</TabsTrigger>
+          <TabsTrigger value="app" className="inline-flex items-center gap-2"><SettingsIcon className="h-4 w-4" /> {t("tabs.app")}</TabsTrigger>
+          <TabsTrigger value="profile" className="inline-flex items-center gap-2"><UserIcon className="h-4 w-4" /> {t("tabs.profile")}</TabsTrigger>
+          <TabsTrigger value="email" className="inline-flex items-center gap-2"><Mail className="h-4 w-4" /> {t("tabs.email")}</TabsTrigger>
+          <TabsTrigger value="security" className="inline-flex items-center gap-2"><Lock className="h-4 w-4" /> {t("tabs.security")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="app" className="space-y-2">
@@ -167,11 +178,11 @@ export default function AccountPage() {
                 <Sun className="h-4 w-4 text-muted-foreground" />
               )}
               <div>
-                <div className="text-sm font-medium">Theme</div>
+                <div className="text-sm font-medium">{t("theme.label")}</div>
                 <div className="text-xs text-muted-foreground">
                   {appTheme === "system"
-                    ? `Follows system - ${resolvedTheme === "dark" ? "dark" : "light"}`
-                    : `Using ${appTheme} theme`}
+                    ? t("theme.followsSystem", { mode: resolvedTheme === "dark" ? t("theme.dark") : t("theme.light") })
+                    : t("theme.using", { mode: t(`theme.${appTheme}` as any) })}
                 </div>
               </div>
             </div>
@@ -183,46 +194,64 @@ export default function AccountPage() {
                 setTheme(next);
                 try {
                   await updateTheme(next);
-                  toast.success("Theme updated");
+                  toast.success(t("theme.updated"));
                 } catch {
-                  toast.error("Could not update theme. Please try again.");
+                  toast.error(t("theme.updateFailed"));
                 }
               }}
             >
               <SelectTrigger className="w-[130px]">
-                <SelectValue placeholder="Select theme" />
+                <SelectValue placeholder={t("theme.placeholder")} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="system">
-                  <span className="inline-flex items-center gap-2"><Laptop className="h-4 w-4" /> System</span>
+                  <span className="inline-flex items-center gap-2"><Laptop className="h-4 w-4" /> {t("theme.system")}</span>
                 </SelectItem>
                 <SelectItem value="light">
-                  <span className="inline-flex items-center gap-2"><Sun className="h-4 w-4" /> Light</span>
+                  <span className="inline-flex items-center gap-2"><Sun className="h-4 w-4" /> {t("theme.light")}</span>
                 </SelectItem>
                 <SelectItem value="dark">
-                  <span className="inline-flex items-center gap-2"><Moon className="h-4 w-4" /> Dark</span>
+                  <span className="inline-flex items-center gap-2"><Moon className="h-4 w-4" /> {t("theme.dark")}</span>
                 </SelectItem>
               </SelectContent>
             </Select>
           </div>
-
           <div className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50">
             <div className="flex items-center gap-3">
               <Languages className="h-4 w-4 text-muted-foreground" />
               <div>
-                <div className="text-sm font-medium">Language</div>
-                <div className="text-xs text-muted-foreground">Choose your preferred language</div>
+                <div className="text-sm font-medium">{t("language.label")}</div>
+                <div className="text-xs text-muted-foreground">{t("language.desc")}</div>
               </div>
             </div>
-            <Select value={language} onValueChange={(v) => setLanguage(v)}>
+            <Select
+              value={language}
+              onValueChange={async (v) => {
+                setLanguage(v);
+                try {
+                  const maxAge = 60 * 60 * 24 * 180;
+                  document.cookie = `NEXT_LOCALE=${v}; Path=/; Max-Age=${maxAge}`;
+                } catch {}
+                try {
+                  setLangUpdating(true);
+                  await updateLanguage(v);
+                  toast.success(t("language.updated"));
+                } catch (e) {
+                  toast.error(t("language.updateFailed"));
+                } finally {
+                  setLangUpdating(false);
+                }
+                if (pathname) router.replace(pathname);
+                router.refresh();
+              }}
+            >
               <SelectTrigger className="w-[130px]">
-                <SelectValue placeholder="Select language" />
+                <SelectValue placeholder={t("language.placeholder")} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="en">English</SelectItem>
-                <SelectItem value="es">Español</SelectItem>
-                <SelectItem value="de">Deutsch</SelectItem>
-                <SelectItem value="fr">Français</SelectItem>
+                <SelectItem value="ru">Русский</SelectItem>
+                <SelectItem value="zh">中文</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -233,21 +262,21 @@ export default function AccountPage() {
             <div className="flex items-center gap-3">
               <UserIcon className="h-4 w-4 text-muted-foreground" />
               <div>
-                <div className="text-sm font-medium">Display name</div>
-                <div className="text-xs text-muted-foreground">Update the name shown across the app.</div>
+                <div className="text-sm font-medium">{t("profile.displayName")}</div>
+                <div className="text-xs text-muted-foreground">{t("profile.displayNameDesc")}</div>
               </div>
             </div>
-            <Button size="sm" onClick={() => setNameOpen(true)}>Change</Button>
+            <Button size="sm" onClick={() => setNameOpen(true)}>{t("common.change")}</Button>
           </div>
           <div className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50">
             <div className="flex items-center gap-3">
               <UserIcon className="h-4 w-4 text-muted-foreground" />
               <div>
-                <div className="text-sm font-medium">Avatar URL</div>
-                <div className="text-xs text-muted-foreground">Change your profile picture URL.</div>
+                <div className="text-sm font-medium">{t("profile.avatarUrl")}</div>
+                <div className="text-xs text-muted-foreground">{t("profile.avatarUrlDesc")}</div>
               </div>
             </div>
-            <Button size="sm" onClick={() => setAvatarOpen(true)}>Change</Button>
+            <Button size="sm" onClick={() => setAvatarOpen(true)}>{t("common.change")}</Button>
           </div>
         </TabsContent>
 
@@ -256,11 +285,11 @@ export default function AccountPage() {
             <div className="flex items-center gap-3">
               <Mail className="h-4 w-4 text-muted-foreground" />
               <div>
-                <div className="text-sm font-medium">Change email</div>
-                <div className="text-xs text-muted-foreground">Start email change and confirm with code.</div>
+                <div className="text-sm font-medium">{t("email.title")}</div>
+                <div className="text-xs text-muted-foreground">{t("email.desc")}</div>
               </div>
             </div>
-            <Button size="sm" onClick={() => setEmailOpen(true)}>Change</Button>
+            <Button size="sm" onClick={() => setEmailOpen(true)}>{t("common.change")}</Button>
           </div>
         </TabsContent>
 
@@ -269,11 +298,11 @@ export default function AccountPage() {
             <div className="flex items-center gap-3">
               <Lock className="h-4 w-4 text-muted-foreground" />
               <div>
-                <div className="text-sm font-medium">Change password</div>
-                <div className="text-xs text-muted-foreground">Set a new account password.</div>
+                <div className="text-sm font-medium">{t("security.title")}</div>
+                <div className="text-xs text-muted-foreground">{t("security.desc")}</div>
               </div>
             </div>
-            <Button size="sm" onClick={() => setPasswordOpen(true)}>Change</Button>
+            <Button size="sm" onClick={() => setPasswordOpen(true)}>{t("common.change")}</Button>
           </div>
         </TabsContent>
       </Tabs>
@@ -281,17 +310,17 @@ export default function AccountPage() {
       <Dialog open={nameOpen} onOpenChange={setNameOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit display name</DialogTitle>
-            <DialogDescription>Update your display name.</DialogDescription>
+            <DialogTitle>{t("profile.editTitle")}</DialogTitle>
+            <DialogDescription>{t("profile.editDesc")}</DialogDescription>
           </DialogHeader>
           <form onSubmit={onSaveName} className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t("profile.nameLabel")}</Label>
               <Input id="name" value={profileName} onChange={(e) => setProfileName(e.target.value)} />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setNameOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={savingProfile}>{savingProfile ? "Saving..." : "Save"}</Button>
+              <Button type="button" variant="outline" onClick={() => setNameOpen(false)}>{t("common.cancel")}</Button>
+              <Button type="submit" disabled={savingProfile}>{savingProfile ? t("common.saving") : t("common.save")}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -300,17 +329,17 @@ export default function AccountPage() {
       <Dialog open={avatarOpen} onOpenChange={setAvatarOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Change avatar URL</DialogTitle>
-            <DialogDescription>Provide a direct link to your profile image.</DialogDescription>
+            <DialogTitle>{t("profile.avatarTitle")}</DialogTitle>
+            <DialogDescription>{t("profile.avatarDesc")}</DialogDescription>
           </DialogHeader>
           <form onSubmit={onSaveAvatar} className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="avatar">Avatar URL</Label>
+              <Label htmlFor="avatar">{t("profile.avatarUrl")}</Label>
               <Input id="avatar" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://..." />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setAvatarOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={savingProfile}>{savingProfile ? "Saving..." : "Save"}</Button>
+              <Button type="button" variant="outline" onClick={() => setAvatarOpen(false)}>{t("common.cancel")}</Button>
+              <Button type="submit" disabled={savingProfile}>{savingProfile ? t("common.saving") : t("common.save")}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -319,29 +348,29 @@ export default function AccountPage() {
       <Dialog open={emailOpen} onOpenChange={(o) => { setEmailOpen(o); if (!o) { setEmailConfirmationId(null); setEmailCode(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Change email</DialogTitle>
-            <DialogDescription>Start email change and confirm using the code sent to your new address.</DialogDescription>
+            <DialogTitle>{t("email.dialogTitle")}</DialogTitle>
+            <DialogDescription>{t("email.dialogDesc")}</DialogDescription>
           </DialogHeader>
           {!emailConfirmationId ? (
             <form onSubmit={onStartEmailChange} className="space-y-3">
               <div className="space-y-1">
-                <Label htmlFor="email">New email</Label>
+                <Label htmlFor="email">{t("email.newLabel")}</Label>
                 <Input id="email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setEmailOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={emailChanging || !newEmail.trim()}>{emailChanging ? "Sending code..." : "Send code"}</Button>
+                <Button type="button" variant="outline" onClick={() => setEmailOpen(false)}>{t("common.cancel")}</Button>
+                <Button type="submit" disabled={emailChanging || !newEmail.trim()}>{emailChanging ? t("email.sendingCode") : t("email.sendCode")}</Button>
               </DialogFooter>
             </form>
           ) : (
             <form onSubmit={onConfirmEmail} className="space-y-3">
               <div className="space-y-1">
-                <Label htmlFor="code">Confirmation code</Label>
-                <Input id="code" value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder="Enter the code" />
+                <Label htmlFor="code">{t("email.codeLabel")}</Label>
+                <Input id="code" value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder={t("email.codePlaceholder")} />
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setEmailConfirmationId(null)}>Back</Button>
-                <Button type="submit" disabled={emailConfirming || !emailCode.trim()}>{emailConfirming ? "Confirming..." : "Confirm"}</Button>
+                <Button type="button" variant="outline" onClick={() => setEmailConfirmationId(null)}>{t("common.back")}</Button>
+                <Button type="submit" disabled={emailConfirming || !emailCode.trim()}>{emailConfirming ? t("email.confirming") : t("email.confirm")}</Button>
               </DialogFooter>
             </form>
           )}
@@ -351,21 +380,21 @@ export default function AccountPage() {
       <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Change password</DialogTitle>
-            <DialogDescription>Enter your current and new password.</DialogDescription>
+            <DialogTitle>{t("security.dialogTitle")}</DialogTitle>
+            <DialogDescription>{t("security.dialogDesc")}</DialogDescription>
           </DialogHeader>
           <form onSubmit={onChangePassword} className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="current">Current password</Label>
+              <Label htmlFor="current">{t("security.current")}</Label>
               <Input id="current" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="new">New password</Label>
+              <Label htmlFor="new">{t("security.new")}</Label>
               <Input id="new" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setPasswordOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={passwordChanging || !currentPassword || !newPassword}>{passwordChanging ? "Changing..." : "Change"}</Button>
+              <Button type="button" variant="outline" onClick={() => setPasswordOpen(false)}>{t("common.cancel")}</Button>
+              <Button type="submit" disabled={passwordChanging || !currentPassword || !newPassword}>{passwordChanging ? t("security.changing") : t("common.change")}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

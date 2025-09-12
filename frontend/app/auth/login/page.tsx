@@ -11,8 +11,10 @@ import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Eye, EyeOff } from "lucide-react";
 import { GalleryVerticalEnd } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export default function LoginPage() {
+  const t = useTranslations('Auth.Login');
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,7 +49,7 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const e = err as { response?: { status?: number; data?: { message?: string } }; message?: string };
       const status = e.response?.status;
-      const msg = e.response?.data?.message || e.message || "Invalid email or password";
+      const msg = e.response?.data?.message || e.message || t('errors.invalidCredentials');
       setError(msg);
       if (status === 409 || /google/i.test(msg)) {
         setHighlightGoogle(true);
@@ -72,8 +74,8 @@ export default function LoginPage() {
         <div className={`flex flex-col gap-6 ${shake ? "animate-shake" : ""}`}>
           <Card>
             <CardHeader className="text-center">
-              <CardTitle className="text-xl">Welcome back</CardTitle>
-              <CardDescription>Login with your Google account or email</CardDescription>
+              <CardTitle className="text-xl">{t('title')}</CardTitle>
+              <CardDescription>{t('subtitle')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-6">
@@ -93,24 +95,24 @@ export default function LoginPage() {
                         fill="currentColor"
                       />
                     </svg>
-                    Continue with Google
+                    {t('continueWithGoogle')}
                   </Button>
                 </div>
                 <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
                   <span className="bg-card text-muted-foreground relative z-10 px-2">
-                    Or continue with
+                    {t('orContinueWith')}
                   </span>
                 </div>
                 <form onSubmit={onSubmit} className="grid gap-6">
                   <div className="grid gap-3">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">{t('email')}</Label>
                     <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="m@example.com" />
                   </div>
                   <div className="grid gap-3">
                     <div className="flex items-center">
-                      <Label htmlFor="password">Password</Label>
+                      <Label htmlFor="password">{t('password')}</Label>
                       <Link href={`/auth/forgot?email=${encodeURIComponent(email)}`} className="ml-auto text-sm underline-offset-4 hover:underline">
-                        Forgot your password?
+                        {t('forgotPassword')}
                       </Link>
                     </div>
                     <div className="relative">
@@ -128,7 +130,7 @@ export default function LoginPage() {
                         size="icon"
                         onClick={() => setShowPassword((s) => !s)}
                         className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                       >
                         {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                       </Button>
@@ -136,17 +138,17 @@ export default function LoginPage() {
                   </div>
                   {error && (
                     <Alert variant="destructive">
-                      <AlertTitle>Sign in failed</AlertTitle>
+                      <AlertTitle>{t('errors.signInFailed')}</AlertTitle>
                       <AlertDescription>{error}</AlertDescription>
                     </Alert>
                   )}
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Signing in..." : "Login"}
+                    {loading ? t('signingIn') : t('login')}
                   </Button>
                   <div className="text-center text-sm">
-                    Don&apos;t have an account?{" "}
+                    {t('noAccount')}{" "}
                     <Link href="/auth/signup" className="underline underline-offset-4">
-                      Sign up
+                      {t('signUp')}
                     </Link>
                   </div>
                 </form>
@@ -154,8 +156,10 @@ export default function LoginPage() {
             </CardContent>
           </Card>
           <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
-            By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
-            and <a href="#">Privacy Policy</a>.
+            {t.rich('terms', {
+              tos: (chunks) => <a href="#">{chunks}</a>,
+              pp: (chunks) => <a href="#">{chunks}</a>,
+            })}
           </div>
         </div>
       </div>

@@ -225,6 +225,8 @@ func (h *UsersAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) 
 func (h *UsersAPI) GetPreferencesEndpoint(w http.ResponseWriter, r *http.Request) {
 	userEmail := r.Context().Value(middleware.UserEmailContextKey).(string)
 
+	time.Sleep(3 * time.Second)
+
 	preferences, err := h.Connection.Preferences.GetByEmail(r.Context(), userEmail)
 	if err != nil {
 		utils.WriteError(w, h.logger, err, "internal server error", http.StatusInternalServerError)

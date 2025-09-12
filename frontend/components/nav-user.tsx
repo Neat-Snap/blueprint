@@ -34,6 +34,7 @@ import {
 import { logout as apiLogout } from "@/lib/auth"
 import { useAuth } from "@/lib/auth-context"
 import { listNotifications } from "@/lib/notifications"
+import { useTranslations } from "next-intl"
 
 export function NavUser({
   user,
@@ -49,6 +50,7 @@ export function NavUser({
   const { logout: clearAuth } = useAuth()
   const [unreadCount, setUnreadCount] = useState<number>(0)
   const [menuOpen, setMenuOpen] = useState(false)
+  const t = useTranslations('UserMenu')
 
   async function refreshUnread() {
     try {
@@ -109,22 +111,22 @@ export function NavUser({
             <DropdownMenuGroup>
               <DropdownMenuItem>
                 <Sparkles />
-                Upgrade to Pro
+                {t('upgrade')}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={() => router.push("/dashboard/account") }>
                 <BadgeCheck />
-                Account
+                {t('account')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/dashboard/billing") }>
                 <CreditCard />
-                Billing
+                {t('billing')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/dashboard/notifications") }>
                 <Bell />
-                Notifications
+                {t('notifications')}
                 {unreadCount > 0 && <span className="ml-auto h-2.5 w-2.5 rounded-full bg-red-500" />}
               </DropdownMenuItem>
             </DropdownMenuGroup>
@@ -137,7 +139,7 @@ export function NavUser({
               }}
             >
               <LogOut />
-              Log out
+              {t('logout')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

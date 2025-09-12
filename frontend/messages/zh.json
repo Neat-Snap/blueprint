@@ -1,0 +1,258 @@
+{
+  "Account": {
+    "title": "账户设置",
+    "subtitle": "管理您的个人资料、邮箱和安全。",
+    "tabs": {
+      "app": "应用设置",
+      "profile": "个人资料",
+      "email": "邮箱",
+      "security": "安全"
+    },
+    "theme": {
+      "label": "主题",
+      "system": "系统",
+      "light": "浅色",
+      "dark": "深色",
+      "followsSystem": "跟随系统（{mode}）",
+      "using": "正在使用 {mode} 主题",
+      "updated": "主题已更新",
+      "updateFailed": "无法更新主题。请重试。",
+      "placeholder": "选择主题"
+    },
+    "language": {
+      "label": "语言",
+      "desc": "选择您偏好的语言",
+      "placeholder": "选择语言",
+      "updated": "语言已更新",
+      "updateFailed": "无法在服务器上更新语言"
+    },
+    "common": {
+      "change": "更改",
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "保存中...",
+      "back": "返回"
+    },
+    "profile": {
+      "displayName": "显示名称",
+      "displayNameDesc": "更新应用中显示的名称。",
+      "nameUpdated": "名称已更新",
+      "avatarUpdated": "头像已更新",
+      "avatarUrl": "头像 URL",
+      "avatarUrlDesc": "更改您的个人头像链接。",
+      "editTitle": "编辑显示名称",
+      "editDesc": "更新您的显示名称。",
+      "nameLabel": "名称",
+      "avatarTitle": "更改头像 URL",
+      "avatarDesc": "提供您的个人头像直链。"
+    },
+    "email": {
+      "title": "更改邮箱",
+      "desc": "开始更改邮箱并通过验证码确认。",
+      "dialogTitle": "更改邮箱",
+      "dialogDesc": "开始更改邮箱，并使用发送到新地址的验证码进行确认。",
+      "newLabel": "新邮箱",
+      "sendCode": "发送验证码",
+      "sendingCode": "正在发送验证码...",
+      "codeLabel": "验证码",
+      "codePlaceholder": "输入验证码",
+      "confirm": "确认",
+      "confirming": "确认中...",
+      "updated": "邮箱已更新",
+      "codeSent": "验证码已发送",
+      "startFailed": "无法开始更改邮箱。请重试或联系 {email}。",
+      "confirmFailed": "无法确认邮箱。请重试或联系 {email}。"
+    },
+    "security": {
+      "title": "更改密码",
+      "desc": "设置一个新的账户密码。",
+      "dialogTitle": "更改密码",
+      "dialogDesc": "输入您当前和新的密码。",
+      "current": "当前密码",
+      "new": "新密码",
+      "changing": "更改中...",
+      "passwordChanged": "密码已更改",
+      "changeFailed": "无法更改密码。请重试或联系 {email}。"
+    }
+  ,
+  "SettingsPage": {
+    "title": "团队设置",
+    "subtitle": "管理当前团队的名称、成员、角色和删除。"
+  }
+  ,
+  "Layout": {
+    "nav": {
+      "dashboard": "仪表盘",
+      "settings": "设置"
+    },
+    "help": "帮助",
+    "feedback": "反馈",
+    "feedbackSend": "发送反馈",
+    "feedbackMessage": "消息",
+    "feedbackPlaceholder": "告诉我们你的想法…",
+    "cancel": "取消",
+    "sending": "发送中…",
+    "send": "发送",
+    "loadingDashboard": "正在加载仪表盘",
+    "user": { "fallbackName": "用户" },
+    "feedbackRateLimited": "已达到每日反馈上限，请明天再试。",
+    "feedbackSendFailed": "无法发送反馈。请稍后再试或联系 support@statgrad.app。",
+    "feedbackThanks": "感谢你的反馈！"
+  }
+  ,
+  "TeamSwitcher": {
+    "selectTeam": "选择团队",
+    "planFree": "免费",
+    "teamsCount": "{count} 个团队",
+    "teams": "团队",
+    "addTeam": "添加团队",
+    "create": {
+      "title": "创建团队",
+      "nameLabel": "名称",
+      "chooseIcon": "选择图标",
+      "initialsFallback": "TM",
+      "namePlaceholder": "我的团队",
+      "creating": "创建中...",
+      "create": "创建"
+    },
+    "icon": { "title": "选择图标" },
+    "toast": {
+      "created": "团队已创建",
+      "createFailed": "无法创建团队。请重试或联系 support@statgrad.app。"
+    }
+  }
+  },
+  "Sidebar": {
+    "team": "团队",
+    "planFree": "免费",
+    "platform": "平台",
+    "toggle": "切换"
+  },
+  "Dashboard": {
+    "noTeamTitle": "未选择团队",
+    "noTeamDesc": "请选择或创建一个团队以查看概览。",
+    "createTeam": "创建团队",
+    "titleWithTeam": "{team} 概览",
+    "subtitle": "该团队的关键指标。",
+    "members": "成员",
+    "pendingInvitations": "待处理邀请",
+    "manage": "管理"
+  },
+  "Notifications": {
+    "title": "通知",
+    "subtitle": "管理您的通知。",
+    "inbox": "收件箱",
+    "unread": "未读 ({count})",
+    "read": "已读 ({count})",
+    "toggle": "切换",
+    "teamInvitation": "团队邀请",
+    "genericType": "通知",
+    "invitedToTeam": "您被邀请加入 {team}",
+    "haveInvitation": "您有一个团队邀请",
+    "badgeAccepted": "已接受",
+    "badgeExpired": "已过期",
+    "badgeRevoked": "已撤销",
+    "btnAccept": "接受",
+    "btnRead": "标记为已读",
+    "detailTeam": "团队：",
+    "detailRole": "角色：",
+    "roleRegular": "普通",
+    "noDetails": "没有更多详细信息。",
+    "allCaughtUp": "您已全部查看。",
+    "toastAccepted": "邀请已接受",
+    "toastAcceptedDesc": "您现在是 {team} 的成员。"
+  },
+  "UserMenu": {
+    "upgrade": "升级到 Pro",
+    "account": "账户",
+    "billing": "账单",
+    "notifications": "通知",
+    "logout": "退出登录"
+  }
+  ,
+  "TeamSettings": {
+    "toast": {
+      "teamUpdated": "团队已更新",
+      "teamUpdateFailed": "无法更新团队。请重试或联系 {email}。",
+      "invitationSent": "邀请已发送",
+      "invitationFailed": "无法发送邀请。请重试或联系 {email}。",
+      "invitationRevoked": "邀请已撤销",
+      "invitationRevokeFailed": "无法撤销邀请。请重试或联系 {email}。",
+      "memberRemoved": "成员已移除",
+      "memberRemoveFailed": "无法移除成员。请重试或联系 {email}。",
+      "roleUpdated": "角色已更新",
+      "roleUpdateFailed": "无法更新角色。请重试或联系 {email}。",
+      "teamDeleted": "团队已删除",
+      "teamDeleteFailed": "无法删除团队。请重试或联系 {email}。"
+    },
+    "noTeamSelected": "请在顶部选择团队以管理设置。",
+    "tabs": {
+      "naming": "命名",
+      "members": "成员",
+      "danger": "危险"
+    },
+    "naming": {
+      "teamName": "团队名称",
+      "teamNameDesc": "重命名此团队。",
+      "teamIcon": "团队图标"
+    },
+    "members": {
+      "title": "成员与待处理邀请",
+      "invite": "邀请",
+      "user": "用户",
+      "owner": "所有者",
+      "roleRegular": "普通",
+      "roleAdmin": "管理员",
+      "remove": "移除",
+      "none": "暂无成员。",
+      "pendingInvitations": "待处理邀请",
+      "expires": "过期时间 {date}",
+      "revoke": "撤销",
+      "noPending": "暂无待处理邀请。"
+    },
+    "danger": {
+      "deleteTitle": "删除团队",
+      "deleteDesc": "此操作无法撤销。"
+    },
+    "dialogs": {
+      "rename": {
+        "title": "重命名团队",
+        "desc": "更新团队名称。",
+        "nameLabel": "名称",
+        "namePlaceholder": "Acme Corp"
+      },
+      "icon": {
+        "title": "选择图标",
+        "desc": "为该团队选择一个图标。"
+      },
+      "invite": {
+        "title": "邀请成员",
+        "desc": "通过邮箱发送邀请。",
+        "emailLabel": "通过邮箱邀请",
+        "roleLabel": "角色",
+        "roleRegular": "普通",
+        "roleRegularDesc": "可查看和编辑团队内容。不能管理成员或删除团队。",
+        "roleAdmin": "管理员",
+        "roleAdminDesc": "可管理成员和邀请，并编辑团队设置。",
+        "send": "发送邀请"
+      },
+      "delete": {
+        "title": "删除团队？",
+        "desc": "此操作无法撤销。该团队的所有数据将被永久删除。"
+      },
+      "remove": {
+        "title": "移除成员？",
+        "desc": "该用户将失去对该团队的访问权限。"
+      }
+    },
+    "common": {
+      "rename": "重命名",
+      "change": "更改",
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "保存中...",
+      "delete": "删除",
+      "sending": "发送中..."
+    }
+  }
+}

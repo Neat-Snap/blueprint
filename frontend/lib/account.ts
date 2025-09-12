@@ -27,8 +27,9 @@ export type UserPreferences = {
 };
 
 export async function getPreferences() {
-  const { data } = await api.get<UserPreferences>("/account/preferences");
-  return data;
+  const { data } = await api.get<{ theme?: "light" | "dark" | "system"; lang?: string }>("/account/preferences");
+  // Map backend 'lang' to frontend 'language'
+  return { theme: data.theme, language: data.lang } satisfies UserPreferences;
 }
 
 export async function updateTheme(theme: "light" | "dark" | "system") {
@@ -36,5 +37,5 @@ export async function updateTheme(theme: "light" | "dark" | "system") {
 }
 
 export async function updateLanguage(language: string) {
-  await api.post("/account/preferences/language", { language });
+  await api.post("/account/preferences/language", { lang: language });
 }

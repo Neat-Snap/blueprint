@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 function parseInviteData(data: string): { team_id?: number; team_name?: string; token?: string; role?: string } {
   try {
@@ -23,6 +24,7 @@ function parseInviteData(data: string): { team_id?: number; team_name?: string; 
 export default function NotificationsPage() {
   const router = useRouter();
   const { switchTo, refresh } = useTeam();
+  const t = useTranslations('Notifications');
   const [loading, setLoading] = useState(true);
   const [list, setList] = useState<Notification[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -116,7 +118,7 @@ export default function NotificationsPage() {
       // Ensure teams list is fresh so the new team is present for selection
       await refresh();
       try { await switchTo(Number(teamId)); } finally { /* no-op */ }
-      toast.success("Invitation accepted", { description: `You're now a member of ${res?.team_name ?? "the team"}.` });
+      toast.success(t('toastAccepted'), { description: t('toastAcceptedDesc', { team: res?.team_name ?? t('genericType') }) });
       router.push(`/dashboard/settings`);
     }
   }
@@ -144,19 +146,19 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Notifications</h1>
-        <p className="text-muted-foreground text-sm">Manage your notifications.</p>
+        <h1 className="text-2xl font-bold">{t('title')}</h1>
+        <p className="text-muted-foreground text-sm">{t('subtitle')}</p>
       </div>
 
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Inbox</CardTitle>
+            <CardTitle>{t('inbox')}</CardTitle>
             <Tabs value={tab} onValueChange={(v) => setTab(v as "unread" | "read")}
               className="text-sm">
               <TabsList>
-                <TabsTrigger value="unread">Unread ({unread.length})</TabsTrigger>
-                <TabsTrigger value="read">Read ({read.length})</TabsTrigger>
+                <TabsTrigger value="unread">{t('unread', { count: unread.length })}</TabsTrigger>
+                <TabsTrigger value="read">{t('read', { count: read.length })}</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -175,28 +177,28 @@ export default function NotificationsPage() {
                       <div className="flex items-start justify-between gap-3">
                         <CollapsibleTrigger asChild>
                           <button className="flex-1 text-left">
-                            <div className="font-medium">{isInvite ? "Team invitation" : (n.type || "Notification")}</div>
+                            <div className="font-medium">{isInvite ? t('teamInvitation') : (n.type || t('genericType'))}</div>
                             <div className="text-xs text-muted-foreground">
-                              {isInvite ? (d.team_name ? `You were invited to ${d.team_name}` : "You have a team invitation") : new Date(n.createdAt).toLocaleString()}
+                              {isInvite ? (d.team_name ? t('invitedToTeam', { team: d.team_name }) : t('haveInvitation')) : new Date(n.createdAt).toLocaleString()}
                             </div>
                           </button>
                         </CollapsibleTrigger>
                         <div className="flex items-center gap-2">
                           {isInvite && st && st !== "pending" && (
                             st === "accepted" ? (
-                              <Badge variant="secondary">Accepted</Badge>
+                              <Badge variant="secondary">{t('badgeAccepted')}</Badge>
                             ) : st === "expired" ? (
-                              <Badge variant="destructive">Expired</Badge>
+                              <Badge variant="destructive">{t('badgeExpired')}</Badge>
                             ) : (
-                              <Badge variant="destructive">Revoked</Badge>
+                              <Badge variant="destructive">{t('badgeRevoked')}</Badge>
                             )
                           )}
                           {tab === "unread" ? (
                           <div className="flex items-center gap-2">
                             {isInvite && (!st || st === "pending") && (
-                              <Button size="sm" type="button" onClick={() => onAcceptInvite(n)}>Accept</Button>
+                              <Button size="sm" type="button" onClick={() => onAcceptInvite(n)}>{t('btnAccept')}</Button>
                             )}
-                            <Button variant="outline" size="sm" type="button" onClick={() => onMarkRead(n)}>Read</Button>
+                            <Button variant="outline" size="sm" type="button" onClick={() => onMarkRead(n)}>{t('btnRead')}</Button>
                           </div>
                           ) : null}
                         </div>
@@ -206,12 +208,12 @@ export default function NotificationsPage() {
                           {isInvite ? (
                             <div className="space-y-2">
                               <div>
-                                <div>Team: <span className="font-medium">{d.team_name || d.team_id}</span></div>
-                                <div>Role: <span className="font-medium">{d.role || "regular"}</span></div>
+                                <div>{t('detailTeam')} <span className="font-medium">{d.team_name || d.team_id}</span></div>
+                                <div>{t('detailRole')} <span className="font-medium">{d.role || t('roleRegular')}</span></div>
                               </div>
                             </div>
                           ) : (
-                            <div className="text-muted-foreground">No additional details.</div>
+                            <div className="text-muted-foreground">{t('noDetails')}</div>
                           )}
                         </div>
                       </CollapsibleContent>
@@ -221,7 +223,7 @@ export default function NotificationsPage() {
               })}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">You&apos;re all caught up.</p>
+            <p className="text-sm text-muted-foreground">{t('allCaughtUp')}</p>
           )}
         </CardContent>
       </Card>

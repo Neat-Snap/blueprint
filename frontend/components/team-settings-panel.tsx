@@ -15,8 +15,10 @@ import { ALLOWED_TEAM_ICONS, renderTeamIcon } from "@/lib/icons";
 import { getMe } from "@/lib/auth";
 import { Trash2, Users, Type, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 export default function TeamSettingsPanel() {
+  const t = useTranslations('TeamSettings');
   const { current, refresh, setCurrentId, switchTo, all } = useTeam();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -76,9 +78,9 @@ export default function TeamSettingsPanel() {
     try {
       await updateTeam(current.id, nextName.trim(), nextIcon?.trim() || undefined);
       await refresh();
-      toast.success("Team updated");
+      toast.success(t('toast.teamUpdated'));
     } catch {
-      toast.error(`Could not update team. Please try again or contact ${SUPPORT_EMAIL}.`);
+      toast.error(t('toast.teamUpdateFailed', { email: SUPPORT_EMAIL }));
     } finally {
       setSaving(false);
     }
@@ -102,9 +104,9 @@ export default function TeamSettingsPanel() {
       const filtered = invs.filter((i) => i.status === "pending" && new Date(i.expires_at).getTime() > now);
       setInvites(filtered);
       setInviteOpen(false);
-      toast.success("Invitation sent");
+      toast.success(t('toast.invitationSent'));
     } catch {
-      toast.error(`Could not send invitation. Please try again or contact ${SUPPORT_EMAIL}.`);
+      toast.error(t('toast.invitationFailed', { email: SUPPORT_EMAIL }));
     } finally {
       setInviting(false);
     }
@@ -115,9 +117,9 @@ export default function TeamSettingsPanel() {
     try {
       await revokeInvitation(current.id, invId);
       setInvites((prev) => prev.filter((i) => i.id !== invId));
-      toast.success("Invitation revoked");
+      toast.success(t('toast.invitationRevoked'));
     } catch {
-      toast.error(`Could not revoke invitation. Please try again or contact ${SUPPORT_EMAIL}.`);
+      toast.error(t('toast.invitationRevokeFailed', { email: SUPPORT_EMAIL }));
     }
   }
 
@@ -126,9 +128,9 @@ export default function TeamSettingsPanel() {
     try {
       await removeMember(current.id, uid);
       setMembers((m) => m.filter((x) => x.id !== uid));
-      toast.success("Member removed");
+      toast.success(t('toast.memberRemoved'));
     } catch {
-      toast.error(`Could not remove member. Please try again or contact ${SUPPORT_EMAIL}.`);
+      toast.error(t('toast.memberRemoveFailed', { email: SUPPORT_EMAIL }));
     }
   }
 
@@ -137,9 +139,9 @@ export default function TeamSettingsPanel() {
     try {
       await updateMemberRole(current.id, uid, role);
       setMembers((prev) => prev.map((m) => (m.id === uid ? { ...m, role } : m)));
-      toast.success("Role updated");
+      toast.success(t('toast.roleUpdated'));
     } catch {
-      toast.error(`Could not update role. Please try again or contact ${SUPPORT_EMAIL}.`);
+      toast.error(t('toast.roleUpdateFailed', { email: SUPPORT_EMAIL }));
     }
   }
 
@@ -155,14 +157,14 @@ export default function TeamSettingsPanel() {
       } else {
         setCurrentId(null);
       }
-      toast.success("Team deleted");
+      toast.success(t('toast.teamDeleted'));
     } catch {
-      toast.error(`Could not delete team. Please try again or contact ${SUPPORT_EMAIL}.`);
+      toast.error(t('toast.teamDeleteFailed', { email: SUPPORT_EMAIL }));
     }
   }
 
   if (loading) return null;
-  if (!current) return <p className="text-sm text-muted-foreground">Select a team from the header to manage settings.</p>;
+  if (!current) return <p className="text-sm text-muted-foreground">{t('noTeamSelected')}</p>;
 
   const myRole = meId ? members.find((m) => m.id === meId)?.role : undefined;
   const isOwner = ownerId != null && meId != null && ownerId === meId;
@@ -172,9 +174,9 @@ export default function TeamSettingsPanel() {
     <div className="space-y-6">
       <Tabs defaultValue="naming">
         <TabsList>
-          <TabsTrigger value="naming" className="inline-flex items-center gap-2"><Type className="h-4 w-4" /> Naming</TabsTrigger>
-          <TabsTrigger value="members" className="inline-flex items-center gap-2"><Users className="h-4 w-4" /> Members</TabsTrigger>
-          <TabsTrigger value="danger" className="inline-flex items-center gap-2"><ShieldAlert className="h-4 w-4" /> Danger</TabsTrigger>
+          <TabsTrigger value="naming" className="inline-flex items-center gap-2"><Type className="h-4 w-4" /> {t('tabs.naming')}</TabsTrigger>
+          <TabsTrigger value="members" className="inline-flex items-center gap-2"><Users className="h-4 w-4" /> {t('tabs.members')}</TabsTrigger>
+          <TabsTrigger value="danger" className="inline-flex items-center gap-2"><ShieldAlert className="h-4 w-4" /> {t('tabs.danger')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="naming" className="space-y-2">
@@ -182,11 +184,11 @@ export default function TeamSettingsPanel() {
             <div className="flex items-center gap-3">
               <Type className="h-4 w-4 text-muted-foreground" />
               <div>
-                <div className="text-sm font-medium">Team name</div>
-                <div className="text-xs text-muted-foreground">Rename this team.</div>
+                <div className="text-sm font-medium">{t('naming.teamName')}</div>
+                <div className="text-xs text-muted-foreground">{t('naming.teamNameDesc')}</div>
               </div>
             </div>
-            <Button size="sm" onClick={() => setRenameOpen(true)} disabled={!isManager}>Rename</Button>
+            <Button size="sm" onClick={() => setRenameOpen(true)} disabled={!isManager}>{t('common.rename')}</Button>
           </div>
           <div className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50">
             <div className="flex items-center gap-3">
@@ -195,17 +197,17 @@ export default function TeamSettingsPanel() {
               ) : (
                 <Type className="h-4 w-4 text-muted-foreground" />
               )}
-              <div className="text-sm font-medium">Team icon</div>
+              <div className="text-sm font-medium">{t('naming.teamIcon')}</div>
             </div>
-            <Button size="sm" onClick={() => setIconOpen(true)} disabled={!isManager}>Change</Button>
+            <Button size="sm" onClick={() => setIconOpen(true)} disabled={!isManager}>{t('common.change')}</Button>
           </div>
         </TabsContent>
 
         <TabsContent value="members" className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 text-base font-semibold"><Users className="h-4 w-4 text-muted-foreground" /> Members and pending invitations</div>
+            <div className="flex items-center gap-3 text-base font-semibold"><Users className="h-4 w-4 text-muted-foreground" /> {t('members.title')}</div>
             {isManager && (
-              <Button size="default" onClick={() => setInviteOpen(true)}>Invite</Button>
+              <Button size="default" onClick={() => setInviteOpen(true)}>{t('members.invite')}</Button>
             )}
           </div>
           <div className="space-y-2">
@@ -213,8 +215,8 @@ export default function TeamSettingsPanel() {
               members.map((m) => (
                 <div key={m.id} className="flex items-center justify-between rounded-md border p-2 text-sm transition-colors hover:bg-muted/40">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{m.name || m.email || `User #${m.id}`}</span>
-                    {ownerId === m.id ? <Badge variant="secondary" className="px-1.5 py-0 h-5">Owner</Badge> : null}
+                    <span className="font-medium">{m.name || m.email || `${t('members.user')} #${m.id}`}</span>
+                    {ownerId === m.id ? <Badge variant="secondary" className="px-1.5 py-0 h-5">{t('members.owner')}</Badge> : null}
                   </div>
                   {isManager && (
                     <div className="flex items-center gap-2">
@@ -222,14 +224,14 @@ export default function TeamSettingsPanel() {
                         <Select value={(m.role as "regular" | "admin") || "regular"} onValueChange={(v: "regular" | "admin") => handleChangeRole(m.id, v)}>
                           <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="regular">Regular</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="regular">{t('members.roleRegular')}</SelectItem>
+                            <SelectItem value="admin">{t('members.roleAdmin')}</SelectItem>
                           </SelectContent>
                         </Select>
                       )}
                       {ownerId !== m.id && (
                         <Button size="sm" variant="destructive" onClick={() => setConfirmRemove({ open: true, userId: m.id })}>
-                          <Trash2 className="mr-1 h-4 w-4" /> Remove
+                          <Trash2 className="mr-1 h-4 w-4" /> {t('members.remove')}
                         </Button>
                       )}
                     </div>
@@ -237,12 +239,12 @@ export default function TeamSettingsPanel() {
                 </div>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground">No members.</p>
+              <p className="text-sm text-muted-foreground">{t('members.none')}</p>
             )}
           </div>
           {isManager && (
             <div className="space-y-2 pt-2">
-              <div className="text-sm font-medium text-muted-foreground">Pending invitations</div>
+              <div className="text-sm font-medium text-muted-foreground">{t('members.pendingInvitations')}</div>
               {invites.length ? (
                 <ul className="divide-y rounded-md border">
                   {invites.map((inv) => (
@@ -250,14 +252,14 @@ export default function TeamSettingsPanel() {
                       <div className="flex items-center gap-2">
                         <div className="font-medium">{inv.email}</div>
                         <Badge variant="outline" className="px-1.5 py-0 h-5 capitalize">{inv.role}</Badge>
-                        <span className="text-xs text-muted-foreground">Expires {new Date(inv.expires_at).toLocaleDateString()}</span>
+                        <span className="text-xs text-muted-foreground">{t('members.expires', { date: new Date(inv.expires_at).toLocaleDateString() })}</span>
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => handleRevoke(inv.id)}>Revoke</Button>
+                      <Button size="sm" variant="outline" onClick={() => handleRevoke(inv.id)}>{t('members.revoke')}</Button>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted-foreground">No pending invitations.</p>
+                <p className="text-sm text-muted-foreground">{t('members.noPending')}</p>
               )}
             </div>
           )}
@@ -266,10 +268,10 @@ export default function TeamSettingsPanel() {
         <TabsContent value="danger" className="space-y-2">
           <div className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50">
             <div>
-              <div className="text-sm font-medium">Delete team</div>
-              <div className="text-xs text-muted-foreground">This action cannot be undone.</div>
+              <div className="text-sm font-medium">{t('danger.deleteTitle')}</div>
+              <div className="text-xs text-muted-foreground">{t('danger.deleteDesc')}</div>
             </div>
-            <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)} disabled={!isOwner}><Trash2 className="mr-1 h-4 w-4" /> Delete</Button>
+            <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)} disabled={!isOwner}><Trash2 className="mr-1 h-4 w-4" /> {t('common.delete')}</Button>
           </div>
         </TabsContent>
       </Tabs>
@@ -278,17 +280,17 @@ export default function TeamSettingsPanel() {
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename team</DialogTitle>
-            <DialogDescription>Update the team name.</DialogDescription>
+            <DialogTitle>{t('dialogs.rename.title')}</DialogTitle>
+            <DialogDescription>{t('dialogs.rename.desc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="ws-name">Name</Label>
-              <Input id="ws-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Corp" />
+              <Label htmlFor="ws-name">{t('dialogs.rename.nameLabel')}</Label>
+              <Input id="ws-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('dialogs.rename.namePlaceholder')} />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setRenameOpen(false)}>Cancel</Button>
-              <Button onClick={async () => { await handleRename(); setRenameOpen(false); }} disabled={!name.trim() || saving}>{saving ? "Saving..." : "Save"}</Button>
+              <Button variant="outline" onClick={() => setRenameOpen(false)}>{t('common.cancel')}</Button>
+              <Button onClick={async () => { await handleRename(); setRenameOpen(false); }} disabled={!name.trim() || saving}>{saving ? t('common.saving') : t('common.save')}</Button>
             </div>
           </div>
         </DialogContent>
@@ -298,8 +300,8 @@ export default function TeamSettingsPanel() {
       <Dialog open={iconOpen} onOpenChange={setIconOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Select icon</DialogTitle>
-            <DialogDescription>Choose an icon for this team.</DialogDescription>
+            <DialogTitle>{t('dialogs.icon.title')}</DialogTitle>
+            <DialogDescription>{t('dialogs.icon.desc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
@@ -323,38 +325,38 @@ export default function TeamSettingsPanel() {
       <Dialog open={inviteOpen} onOpenChange={(o) => { setInviteOpen(o); if (!o) { setInviteEmail(""); setInviteRole("regular"); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invite member</DialogTitle>
-            <DialogDescription>Send an invitation by email.</DialogDescription>
+            <DialogTitle>{t('dialogs.invite.title')}</DialogTitle>
+            <DialogDescription>{t('dialogs.invite.desc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {isManager && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="invite-email">Invite by email</Label>
+                  <Label htmlFor="invite-email">{t('dialogs.invite.emailLabel')}</Label>
                   <Input id="invite-email" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="user@example.com" />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label>Role</Label>
+                  <Label>{t('dialogs.invite.roleLabel')}</Label>
                   <RadioGroup value={inviteRole} onValueChange={(v) => setInviteRole(v as "regular" | "admin")}>
                     <label className="flex items-start gap-3 rounded-md border p-2 transition-colors hover:bg-muted/50">
                       <RadioGroupItem value="regular" />
                       <div>
-                        <div className="text-sm font-medium">Regular</div>
-                        <div className="text-xs text-muted-foreground">Can view and edit team content. Cannot manage members or delete team.</div>
+                        <div className="text-sm font-medium">{t('dialogs.invite.roleRegular')}</div>
+                        <div className="text-xs text-muted-foreground">{t('dialogs.invite.roleRegularDesc')}</div>
                       </div>
                     </label>
                     <label className="flex items-start gap-3 rounded-md border p-2 transition-colors hover:bg-muted/50">
                       <RadioGroupItem value="admin" />
                       <div>
-                        <div className="text-sm font-medium">Admin</div>
-                        <div className="text-xs text-muted-foreground">Can manage members and invitations, and edit team settings.</div>
+                        <div className="text-sm font-medium">{t('dialogs.invite.roleAdmin')}</div>
+                        <div className="text-xs text-muted-foreground">{t('dialogs.invite.roleAdminDesc')}</div>
                       </div>
                     </label>
                   </RadioGroup>
                 </div>
                 <div className="sm:col-span-2 flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
-                  <Button onClick={handleInvite} disabled={inviting || !inviteEmail.trim()}>{inviting ? "Sending..." : "Send invitation"}</Button>
+                  <Button variant="outline" onClick={() => setInviteOpen(false)}>{t('common.cancel')}</Button>
+                  <Button onClick={handleInvite} disabled={inviting || !inviteEmail.trim()}>{inviting ? t('common.sending') : t('dialogs.invite.send')}</Button>
                 </div>
               </div>
             )}
@@ -366,12 +368,12 @@ export default function TeamSettingsPanel() {
       <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete team?</DialogTitle>
-            <DialogDescription>This action cannot be undone. All data for this team will be permanently removed.</DialogDescription>
+            <DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
+            <DialogDescription>{t('dialogs.delete.desc')}</DialogDescription>
           </DialogHeader>
           <DialogModalFooter>
-            <Button variant="outline" onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={async () => { setConfirmDeleteOpen(false); await handleDelete(); }}>Delete</Button>
+            <Button variant="outline" onClick={() => setConfirmDeleteOpen(false)}>{t('common.cancel')}</Button>
+            <Button variant="destructive" onClick={async () => { setConfirmDeleteOpen(false); await handleDelete(); }}>{t('common.delete')}</Button>
           </DialogModalFooter>
         </DialogContent>
       </Dialog>
@@ -380,12 +382,12 @@ export default function TeamSettingsPanel() {
       <Dialog open={confirmRemove.open} onOpenChange={(o) => setConfirmRemove({ open: o })}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove member?</DialogTitle>
-            <DialogDescription>This user will lose access to this team.</DialogDescription>
+            <DialogTitle>{t('dialogs.remove.title')}</DialogTitle>
+            <DialogDescription>{t('dialogs.remove.desc')}</DialogDescription>
           </DialogHeader>
           <DialogModalFooter>
-            <Button variant="outline" onClick={() => setConfirmRemove({ open: false })}>Cancel</Button>
-            <Button variant="destructive" onClick={async () => { const uid = confirmRemove.userId!; setConfirmRemove({ open: false }); await handleRemoveMember(uid); }}>Remove</Button>
+            <Button variant="outline" onClick={() => setConfirmRemove({ open: false })}>{t('common.cancel')}</Button>
+            <Button variant="destructive" onClick={async () => { const uid = confirmRemove.userId!; setConfirmRemove({ open: false }); await handleRemoveMember(uid); }}>{t('members.remove')}</Button>
           </DialogModalFooter>
         </DialogContent>
       </Dialog>
