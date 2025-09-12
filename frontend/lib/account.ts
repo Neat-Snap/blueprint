@@ -20,3 +20,21 @@ export async function confirmEmail(confirmation_id: string, code: string) {
 export async function changePassword(current_password: string, new_password: string) {
   await api.patch("/account/password/change", { current_password, new_password });
 }
+
+export type UserPreferences = {
+  theme?: "light" | "dark" | "system";
+  language?: string;
+};
+
+export async function getPreferences() {
+  const { data } = await api.get<UserPreferences>("/account/preferences");
+  return data;
+}
+
+export async function updateTheme(theme: "light" | "dark" | "system") {
+  await api.post("/account/preferences/theme", { theme });
+}
+
+export async function updateLanguage(language: string) {
+  await api.post("/account/preferences/language", { language });
+}

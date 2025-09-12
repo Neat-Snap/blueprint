@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"time"
 
 	"strings"
@@ -218,4 +219,114 @@ func (h *UsersAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) 
 	returnCookieToken(h.Config.APP_URL, w, token, h.Config)
 
 	returnDefaultPositiveResponse(w, h.logger)
+}
+
+// GET /account/preferences
+func (h *UsersAPI) GetPreferencesEndpoint(w http.ResponseWriter, r *http.Request) {
+	userEmail := r.Context().Value(middleware.UserEmailContextKey).(string)
+
+	preferences, err := h.Connection.Preferences.GetByEmail(r.Context(), userEmail)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	resp := struct {
+		Theme    string `json:"theme"`
+		Language string `json:"lang"`
+	}{
+		Theme:    preferences.Theme,
+		Language: preferences.Language,
+	}
+
+	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
+}
+
+// POST /account/preferences/theme
+func (h *UsersAPI) UpdateUserThemeEndpoint(w http.ResponseWriter, r *http.Request) {
+	userEmail := r.Context().Value(middleware.UserEmailContextKey).(string)
+
+	var req struct {
+		Theme string `json:"theme"`
+	}
+
+	err := utils.ReadJSON(r.Body, w, h.logger, &req)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	allowedThemes := []string{"light", "dark", "system"}
+	if !slices.Contains(allowedThemes, req.Theme) {
+		h.logger.Debug("got theme", req.Theme)
+		utils.WriteError(w, h.logger, err, "theme type not allowed", http.StatusBadRequest)
+		return
+	}
+
+	preference, err := h.Connection.Preferences.GetByEmail(r.Context(), userEmail)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	preference.Theme = req.Theme
+
+	if err = h.Connection.Preferences.Update(r.Context(), preference); err != nil {
+		utils.WriteError(w, h.logger, err, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	resp := struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}{
+		Success: true,
+		Message: "user theme updated successfully",
+	}
+
+	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
+}
+
+// POST /account/preferences/language
+func (h *UsersAPI) UpdateUserLanguage(w http.ResponseWriter, r *http.Request) {
+	userEmail := r.Context().Value(middleware.UserEmailContextKey).(string)
+
+	var req struct {
+		Lang string `json:"lang"`
+	}
+
+	err := utils.ReadJSON(r.Body, w, h.logger, &req)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	allowedLanguages := []string{"en", "ru", "zh"}
+	if !slices.Contains(allowedLanguages, req.Lang) {
+		utils.WriteError(w, h.logger, err, "language not found", http.StatusBadRequest)
+		return
+	}
+
+	preference, err := h.Connection.Preferences.GetByEmail(r.Context(), userEmail)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	preference.Language = req.Lang
+
+	if err = h.Connection.Preferences.Update(r.Context(), preference); err != nil {
+		utils.WriteError(w, h.logger, err, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	resp := struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}{
+		Success: true,
+		Message: "user language updated successfully",
+	}
+
+	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
 }

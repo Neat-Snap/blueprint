@@ -136,6 +136,11 @@ func SignUpEmailPassword(ctx context.Context, store *db.Connection, email, passw
 		if err := tx.Auth.EnsurePasswordCredential(ctx, u.ID, hash); err != nil {
 			return err
 		}
+
+		if err := tx.Preferences.Create(ctx, u.ID); err != nil {
+			return err
+		}
+
 		out = u
 		return nil
 	})

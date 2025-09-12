@@ -420,6 +420,11 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 		if err := tx.Auth.LinkIdentity(r.Context(), dbUser.ID, provider, subject, &email); err != nil {
 			return err
 		}
+
+		if err := tx.Preferences.Create(r.Context(), dbUser.ID); err != nil {
+			return err
+		}
+
 		signedInUser = dbUser
 		return nil
 	})

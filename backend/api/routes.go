@@ -97,6 +97,10 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.Patch("/email/change", usersAPI.ChangeEmailEndpoint)
 		r.Patch("/email/confirm", usersAPI.ConfirmEmailEndpoint)
 		r.Patch("/password/change", usersAPI.ChangePasswordEndpoint)
+
+		r.Get("/preferences", usersAPI.GetPreferencesEndpoint)
+		r.Post("/preferences/theme", usersAPI.UpdateUserThemeEndpoint)
+		r.Post("/preferences/language", usersAPI.UpdateUserLanguage)
 	})
 
 	notificationsAPI := handlers.NewNotificationsAPI(c.Logger, c.Connection)

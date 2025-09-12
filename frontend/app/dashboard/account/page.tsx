@@ -6,16 +6,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { changeEmail, changePassword, confirmEmail, updateProfile } from "@/lib/account";
+import { changeEmail, changePassword, confirmEmail, updateProfile, getPreferences, updateTheme } from "@/lib/account";
 import { toast } from "sonner";
-import { User as UserIcon, Mail, Lock } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Settings as SettingsIcon, Sun, Moon, Languages, Laptop } from "lucide-react";
 import { getMe } from "@/lib/auth";
+import { useTheme } from "next-themes";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function AccountPage() {
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
+
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [appTheme, setAppTheme] = useState<"light" | "dark" | "system">("system");
+  const [language, setLanguage] = useState<string>("en");
 
   const [newEmail, setNewEmail] = useState("");
   const [emailConfirmationId, setEmailConfirmationId] = useState<string | null>(null);
@@ -41,6 +47,16 @@ export default function AccountPage() {
         const me = await getMe();
         setProfileName(me.name || "");
         setNewEmail(me.email || "");
+        try {
+          const prefs = await getPreferences();
+          const initialTheme = (prefs.theme || "system") as "light" | "dark" | "system";
+          setAppTheme(initialTheme);
+          setTheme(initialTheme);
+          if (prefs.language) setLanguage(prefs.language);
+        } catch {
+          const current = (theme || "system") as "light" | "dark" | "system";
+          setAppTheme(current);
+        }
       } finally {
         setLoading(false);
       }
@@ -131,12 +147,86 @@ export default function AccountPage() {
         <p className="text-muted-foreground text-sm">Manage your profile, email, and security.</p>
       </div>
 
-      <Tabs defaultValue="profile">
+      <Tabs defaultValue="app">
         <TabsList>
+          <TabsTrigger value="app" className="inline-flex items-center gap-2"><SettingsIcon className="h-4 w-4" /> App Settings</TabsTrigger>
           <TabsTrigger value="profile" className="inline-flex items-center gap-2"><UserIcon className="h-4 w-4" /> Profile</TabsTrigger>
           <TabsTrigger value="email" className="inline-flex items-center gap-2"><Mail className="h-4 w-4" /> Email</TabsTrigger>
           <TabsTrigger value="security" className="inline-flex items-center gap-2"><Lock className="h-4 w-4" /> Security</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="app" className="space-y-2">
+          {/* Theme */}
+          <div className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50">
+            <div className="flex items-center gap-3">
+              {appTheme === "dark" ? (
+                <Moon className="h-4 w-4 text-muted-foreground" />
+              ) : appTheme === "light" ? (
+                <Sun className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Sun className="h-4 w-4 text-muted-foreground" />
+              )}
+              <div>
+                <div className="text-sm font-medium">Theme</div>
+                <div className="text-xs text-muted-foreground">
+                  {appTheme === "system"
+                    ? `Follows system - ${resolvedTheme === "dark" ? "dark" : "light"}`
+                    : `Using ${appTheme} theme`}
+                </div>
+              </div>
+            </div>
+            <Select
+              value={appTheme}
+              onValueChange={async (value) => {
+                const next = value as "light" | "dark" | "system";
+                setAppTheme(next);
+                setTheme(next);
+                try {
+                  await updateTheme(next);
+                  toast.success("Theme updated");
+                } catch {
+                  toast.error("Could not update theme. Please try again.");
+                }
+              }}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="Select theme" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="system">
+                  <span className="inline-flex items-center gap-2"><Laptop className="h-4 w-4" /> System</span>
+                </SelectItem>
+                <SelectItem value="light">
+                  <span className="inline-flex items-center gap-2"><Sun className="h-4 w-4" /> Light</span>
+                </SelectItem>
+                <SelectItem value="dark">
+                  <span className="inline-flex items-center gap-2"><Moon className="h-4 w-4" /> Dark</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50">
+            <div className="flex items-center gap-3">
+              <Languages className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <div className="text-sm font-medium">Language</div>
+                <div className="text-xs text-muted-foreground">Choose your preferred language</div>
+              </div>
+            </div>
+            <Select value={language} onValueChange={(v) => setLanguage(v)}>
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="Select language" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="en">English</SelectItem>
+                <SelectItem value="es">Español</SelectItem>
+                <SelectItem value="de">Deutsch</SelectItem>
+                <SelectItem value="fr">Français</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </TabsContent>
 
         <TabsContent value="profile" className="space-y-2">
           <div className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50">

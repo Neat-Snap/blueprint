@@ -13,6 +13,7 @@ type Connection struct {
 	Auth          AuthRepo
 	Invitations   InvitationsRepo
 	Notifications NotificationsRepo
+	Preferences   UserPreferencesRepo
 }
 
 func NewConnection(db *gorm.DB) *Connection {
@@ -23,6 +24,7 @@ func NewConnection(db *gorm.DB) *Connection {
 		Auth:          &authRepo{db: db},
 		Invitations:   &invitationsRepo{db: db},
 		Notifications: &notificationsRepo{db: db},
+		Preferences:   &preferencesRepo{db: db},
 	}
 }
 
@@ -35,6 +37,7 @@ func (c *Connection) WithTx(ctx context.Context, fn func(tx *Connection) error) 
 			Auth:          &authRepo{db: tx},
 			Invitations:   &invitationsRepo{db: tx},
 			Notifications: &notificationsRepo{db: tx},
+			Preferences:   &preferencesRepo{db: tx},
 		}
 		return fn(localConn)
 	})
@@ -82,4 +85,11 @@ type NotificationsRepo interface {
 	Create(ctx context.Context, n *Notification) error
 	ListForUser(ctx context.Context, userID uint) ([]Notification, error)
 	MarkRead(ctx context.Context, id uint) error
+}
+
+type UserPreferencesRepo interface {
+	Create(ctx context.Context, userID uint) error
+	Get(ctx context.Context, userID uint) (*UserPreference, error)
+	GetByEmail(ctx context.Context, userEmail string) (*UserPreference, error)
+	Update(ctx context.Context, preference *UserPreference) error
 }

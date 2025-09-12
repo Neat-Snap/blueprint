@@ -24,6 +24,16 @@ type User struct {
 	Teams []Team `gorm:"many2many:user_teams;joinForeignKey:UserID;joinReferences:TeamID;constraint:OnDelete:CASCADE;"`
 }
 
+type UserPreference struct {
+	ID uint `gorm:"primaryKey"`
+
+	UserID uint  `gorm:"index;not null"`
+	User   *User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+
+	Theme    string `gorm:"type:varchar(32);not null;default:'system'"`
+	Language string `gorm:"type:varchar(32);not null;default:'en'"`
+}
+
 type Notification struct {
 	ID        uint `gorm:"primaryKey"`
 	CreatedAt time.Time
