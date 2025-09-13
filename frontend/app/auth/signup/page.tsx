@@ -2,13 +2,13 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signup, getMe, beginGoogleLogin } from "@/lib/auth";
+import { signup, getMe, beginGoogleLogin, beginGithubLogin } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { GalleryVerticalEnd } from "lucide-react";
+import { GalleryVerticalEnd, Github } from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -92,6 +92,16 @@ export default function SignupPage() {
                       />
                     </svg>
                     Continue with Google
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      beginGithubLogin();
+                    }}
+                  >
+                    <Github className="mr-2 size-4" />
+                    Continue with GitHub
                   </Button>
                 </div>
                 <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">

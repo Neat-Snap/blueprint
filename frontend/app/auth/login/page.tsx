@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { login, beginGoogleLogin, getMe } from "@/lib/auth";
+import { login, beginGoogleLogin, beginGithubLogin, getMe } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/com
 import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Eye, EyeOff } from "lucide-react";
+import { Github } from "lucide-react";
 import { GalleryVerticalEnd } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -96,6 +97,16 @@ export default function LoginPage() {
                       />
                     </svg>
                     {t('continueWithGoogle')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      beginGithubLogin();
+                    }}
+                  >
+                    <Github className="mr-2 size-4" />
+                    Continue with GitHub
                   </Button>
                 </div>
                 <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">

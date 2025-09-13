@@ -66,7 +66,7 @@ type TeamsRepo interface {
 
 type AuthRepo interface {
 	FindAuthIdentity(ctx context.Context, provider, subject string) (*AuthIdentity, error)
-	LinkIdentity(ctx context.Context, userID uint, provider, subject string, providerEmail *string) error
+	LinkIdentity(ctx context.Context, userID uint, provider, subject string, providerEmail, accessToken, refreshToken *string) error
 	EnsurePasswordCredential(ctx context.Context, userID uint, hashed string) error
 	FindUserByAuthIdentity(ctx context.Context, ai *AuthIdentity) (*User, error)
 	FindPasswordCredential(ctx context.Context, userID uint) (*PasswordCredential, error)

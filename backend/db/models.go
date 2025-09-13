@@ -72,6 +72,9 @@ type AuthIdentity struct {
 	Provider string `gorm:"type:varchar(32);not null;index:uniq_provider_subject,unique"`
 	Subject  string `gorm:"type:varchar(191);not null;index:uniq_provider_subject,unique"`
 
+	AccessToken  *string
+	RefreshToken *string
+
 	ProviderEmail *string
 }
 

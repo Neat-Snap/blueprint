@@ -28,9 +28,9 @@ func (r *authRepo) FindUserByAuthIdentity(ctx context.Context, ai *AuthIdentity)
 	return &u, err
 }
 
-func (r *authRepo) LinkIdentity(ctx context.Context, userID uint, provider, subject string, providerEmail *string) error {
+func (r *authRepo) LinkIdentity(ctx context.Context, userID uint, provider, subject string, providerEmail, accessToken, refreshToken *string) error {
 	ai := AuthIdentity{
-		UserID: userID, Provider: provider, Subject: subject, ProviderEmail: providerEmail,
+		UserID: userID, Provider: provider, Subject: subject, ProviderEmail: providerEmail, AccessToken: accessToken, RefreshToken: refreshToken,
 	}
 	// rely on UNIQUE(provider,subject)
 	return r.db.WithContext(ctx).

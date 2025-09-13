@@ -18,6 +18,10 @@ export function beginGoogleLogin() {
   window.location.href = `${API_BASE_URL}/auth/google`;
 }
 
+export function beginGithubLogin() {
+  window.location.href = `${API_BASE_URL}/auth/github`;
+}
+
 export async function getMe() {
   const { data } = await api.get<{ id?: string; email?: string; name?: string }>("/auth/me");
   return data;

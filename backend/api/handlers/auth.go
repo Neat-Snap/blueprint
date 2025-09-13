@@ -17,6 +17,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
+	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/google"
 	"gorm.io/gorm"
 )
@@ -154,6 +155,12 @@ func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connectio
 			config.GOOGLE_CLIENT_SECRET,
 			fmt.Sprintf("%s/auth/google/callback", config.BACKEND_PUBLIC_URL),
 			"openid", "email", "profile",
+		),
+		github.New(
+			config.GITHUB_CLIENT_ID,
+			config.GITHUB_CLIENT_SECRET,
+			fmt.Sprintf("%s/auth/github/callback", config.BACKEND_PUBLIC_URL),
+			"read:user",
 		),
 	)
 
@@ -321,6 +328,12 @@ func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
 
 // GET /auth/{provider}
 func (a *AuthAPI) ProviderBeginAuthEndpoint(w http.ResponseWriter, r *http.Request) {
+	// if gothUser, err := gothic.CompleteUserAuth(res, req); err == nil {
+	// 	t, _ := template.New("foo").Parse(userTemplate)
+	// 	t.Execute(res, gothUser)
+	// } else {
+	// 	gothic.BeginAuthHandler(res, req)
+	// }
 	gothic.BeginAuthHandler(w, r)
 }
 
@@ -343,24 +356,16 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 
 	email := utils.NormalizeEmail(u.Email)
 
-	appUser := SessionUser{
-		Provider:     provider,
-		UserID:       subject,
-		Email:        u.Email,
-		Name:         utils.PickNonEmpty(u.Name, u.NickName),
-		AvatarURL:    u.AvatarURL,
-		AccessToken:  u.AccessToken,
-		RefreshToken: u.RefreshToken,
-		Expiry:       u.ExpiresAt,
-	}
-
+	name := utils.PickNonEmpty(u.Name, u.NickName)
 	now := time.Now()
 	dbUser := &db.User{
 		Email:           &email,
-		Name:            &appUser.Name,
+		Name:            &name,
 		EmailVerifiedAt: &now,
-		AvatarURL:       &appUser.AvatarURL,
+		AvatarURL:       &u.AvatarURL,
 	}
+
+	a.logger.Debug("got user from provider: ", "user", u)
 
 	var signedInUser *db.User
 	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
@@ -381,7 +386,7 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 
 		if curr, err := tx.Users.ByEmail(r.Context(), email); err == nil {
 			// User with this email already exists, link the new auth identity to them.
-			if err := tx.Auth.LinkIdentity(r.Context(), curr.ID, provider, subject, &email); err != nil {
+			if err := tx.Auth.LinkIdentity(r.Context(), curr.ID, provider, subject, &email, &u.AccessToken, &u.RefreshToken); err != nil {
 				if utils.IsUniqueViolation(err, "uniq_provider_subject") {
 					ai, err2 := tx.Auth.FindAuthIdentity(r.Context(), provider, subject)
 					if err2 != nil {
@@ -409,7 +414,7 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 				if err2 != nil {
 					return err2
 				}
-				if err := tx.Auth.LinkIdentity(r.Context(), u2.ID, provider, subject, &email); err != nil {
+				if err := tx.Auth.LinkIdentity(r.Context(), u2.ID, provider, subject, &email, &u.AccessToken, &u.RefreshToken); err != nil {
 					return err
 				}
 				signedInUser = u2
@@ -417,7 +422,7 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 			}
 		}
 
-		if err := tx.Auth.LinkIdentity(r.Context(), dbUser.ID, provider, subject, &email); err != nil {
+		if err := tx.Auth.LinkIdentity(r.Context(), dbUser.ID, provider, subject, &email, &u.AccessToken, &u.RefreshToken); err != nil {
 			return err
 		}
 

@@ -38,8 +38,12 @@ type Config struct {
 
 	GOOGLE_CLIENT_ID     string
 	GOOGLE_CLIENT_SECRET string
-	SUPPORT_EMAIL        string
-	DEVELOPER_EMAIL      string
+
+	GITHUB_CLIENT_ID     string
+	GITHUB_CLIENT_SECRET string
+
+	SUPPORT_EMAIL   string
+	DEVELOPER_EMAIL string
 
 	JWT_SECRET   string
 	JWT_ISSUER   string
@@ -125,8 +129,12 @@ func Load() Config {
 
 		GOOGLE_CLIENT_ID:     getenvStrict("GOOGLE_CLIENT_ID"),
 		GOOGLE_CLIENT_SECRET: getenvStrict("GOOGLE_CLIENT_SECRET"),
-		SUPPORT_EMAIL:        fmt.Sprintf("support@%s", getenvStrict("APP_URL")),
-		DEVELOPER_EMAIL:      getenv("DEVELOPER_EMAIL", ""),
+
+		GITHUB_CLIENT_ID:     getenvStrict("GITHUB_CLIENT_ID"),
+		GITHUB_CLIENT_SECRET: getenvStrict("GITHUB_CLIENT_SECRET"),
+
+		SUPPORT_EMAIL:   fmt.Sprintf("support@%s", getenvStrict("APP_URL")),
+		DEVELOPER_EMAIL: getenv("DEVELOPER_EMAIL", ""),
 
 		JWT_SECRET:   getenvStrict("JWT_SECRET"),
 		JWT_ISSUER:   getenv("JWT_ISSUER", "statgrad"),
