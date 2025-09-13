@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { GalleryVerticalEnd, Github } from "lucide-react";
+import { GalleryVerticalEnd } from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -100,7 +100,15 @@ export default function SignupPage() {
                       beginGithubLogin();
                     }}
                   >
-                    <Github className="mr-2 size-4" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      focusable="false"
+                      fill="currentColor"
+                    >
+                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.207 11.387.6.107.82-.26.82-.58 0-.287-.01-1.05-.016-2.06-3.338.726-4.042-1.61-4.042-1.61-.547-1.39-1.336-1.76-1.336-1.76-1.09-.746.083-.73.083-.73 1.204.084 1.84 1.237 1.84 1.237 1.07 1.835 2.807 1.305 3.492.998.107-.776.418-1.305.762-1.605-2.665-.303-5.466-1.332-5.466-5.93 0-1.31.468-2.38 1.236-3.22-.124-.304-.536-1.527.117-3.183 0 0 1.008-.322 3.3 1.23.957-.266 1.983-.398 3.003-.403 1.02.005 2.046.137 3.005.403 2.29-1.552 3.297-1.23 3.297-1.23.655 1.656.243 2.88.12 3.183.77.84 1.235 1.91 1.235 3.22 0 4.61-2.804 5.624-5.475 5.92.43.37.814 1.103.814 2.226 0 1.606-.015 2.9-.015 3.294 0 .32.218.693.826.576C20.565 21.796 24 17.298 24 12 24 5.37 18.63 0 12 0z"/>
+                    </svg>
                     Continue with GitHub
                   </Button>
                 </div>
