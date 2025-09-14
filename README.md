@@ -1,4 +1,4 @@
-# StatGrad - Project Template
+# Project Template
 
 [![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white&labelColor=0b1021)](https://go.dev)
 [![Chi](https://img.shields.io/badge/chi-router-3b5bdb?labelColor=0b1021)](https://github.com/go-chi/chi)
@@ -55,7 +55,7 @@ APP_WRITE_TIMEOUT_S=30
 APP_IDLE_TIMEOUT_S=60
 
 # --- Database ---
-DB_NAME=statgrad
+DB_NAME=dbname
 DB_USER=postgres
 DB_PASS=postgres
 DB_HOST=localhost
@@ -69,7 +69,7 @@ REDIS_DB=0
 REDIS_SECRET=dev-redis-secret-change-me
 
 # --- App metadata ---
-APP_NAME=StatGrad
+APP_NAME=AppName
 APP_URL=localhost:3000
 
 # --- Secrets ---
