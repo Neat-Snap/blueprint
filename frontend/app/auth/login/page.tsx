@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login, beginGoogleLogin, beginGithubLogin, getMe } from "@/lib/auth";
+import { validateEmail } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,9 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
+      const emailErr = validateEmail(email);
+      if (emailErr) throw new Error(emailErr);
+      if (!password.trim()) throw new Error(t('errors.passwordRequired'));
       await login(email, password);
       router.push("/dashboard");
     } catch (err: unknown) {

@@ -48,6 +48,13 @@ type Config struct {
 	JWT_SECRET   string
 	JWT_ISSUER   string
 	JWT_AUDIENCE string
+
+	PASSWORD_MIN_LENGTH     int
+	PASSWORD_MAX_LENGTH     int
+	PASSWORD_REQUIRE_UPPER  bool
+	PASSWORD_REQUIRE_LOWER  bool
+	PASSWORD_REQUIRE_NUMBER bool
+	PASSWORD_REQUIRE_SYMBOL bool
 }
 
 func getenv(k, def string) string {
@@ -139,5 +146,12 @@ func Load() Config {
 		JWT_SECRET:   getenvStrict("JWT_SECRET"),
 		JWT_ISSUER:   getenv("JWT_ISSUER", "statgrad"),
 		JWT_AUDIENCE: getenv("JWT_AUDIENCE", "statgrad-web"),
+
+		PASSWORD_MIN_LENGTH:     8,
+		PASSWORD_MAX_LENGTH:     128,
+		PASSWORD_REQUIRE_UPPER:  true,
+		PASSWORD_REQUIRE_LOWER:  true,
+		PASSWORD_REQUIRE_NUMBER: true,
+		PASSWORD_REQUIRE_SYMBOL: true,
 	}
 }

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+import { validateEmail } from "@/lib/validation";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -40,6 +41,12 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError(null);
     setServerMsg(null);
+    const emailErr = validateEmail(email);
+    if (emailErr) {
+      setError(emailErr);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await requestPasswordReset(email);
       setServerMsg(res.message || null);

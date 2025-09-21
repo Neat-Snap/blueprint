@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/card";
+import { validatePassword, getPasswordPolicy } from "@/lib/validation";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -40,8 +41,9 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters long");
+    const pwErr = validatePassword(password, getPasswordPolicy());
+    if (pwErr) {
+      setError(pwErr);
       setLoading(false);
       return;
     }
@@ -54,7 +56,6 @@ export default function ResetPasswordPage() {
     }
     try {
       await confirmPasswordReset(resetId, code, password);
-      // Backend will set cookie and may redirect to /auth/ready; we can simply push there.
       router.push("/auth/ready");
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } }; message?: string };

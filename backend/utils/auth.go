@@ -96,13 +96,20 @@ func ComparePassword(pw, phc string) (bool, error) {
 }
 
 func SignUpEmailPassword(ctx context.Context, store *db.Connection, email, password, name string) (*db.User, error) {
-	e := NormalizeEmail(email)
-	if e == "" || password == "" {
-		return nil, errors.New("email and password required")
+	e, err := ValidateEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidatePassword(password, DefaultPasswordPolicy()); err != nil {
+		return nil, err
+	}
+	n, err := ValidateOptionalName(name)
+	if err != nil {
+		return nil, err
 	}
 
 	var out *db.User
-	err := store.WithTx(ctx, func(tx *db.Connection) error {
+	err = store.WithTx(ctx, func(tx *db.Connection) error {
 		u, err := tx.Users.ByEmail(ctx, e)
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
@@ -123,7 +130,7 @@ func SignUpEmailPassword(ctx context.Context, store *db.Connection, email, passw
 
 		u = &db.User{
 			Email:           &e,
-			Name:            &name,
+			Name:            &n,
 			EmailVerifiedAt: nil,
 		}
 		if err := tx.Users.Create(ctx, u); err != nil {
@@ -148,11 +155,13 @@ func SignUpEmailPassword(ctx context.Context, store *db.Connection, email, passw
 }
 
 func ResetPassword(ctx context.Context, store *db.Connection, email, password string) error {
-	e := NormalizeEmail(email)
-	if e == "" || password == "" {
-		return errors.New("email and password required")
+	e, err := ValidateEmail(email)
+	if err != nil {
+		return err
 	}
-
+	if err := ValidatePassword(password, DefaultPasswordPolicy()); err != nil {
+		return err
+	}
 	u, err := store.Users.ByEmail(ctx, e)
 	if err != nil {
 		return err
@@ -162,9 +171,9 @@ func ResetPassword(ctx context.Context, store *db.Connection, email, password st
 		return ErrOAuthOnlyAccount
 	}
 
-	hash, hashErr := HashPassword(password, DefaultArgon)
-	if hashErr != nil {
-		return hashErr
+	hash, err := HashPassword(password, DefaultArgon)
+	if err != nil {
+		return err
 	}
 
 	return store.Auth.EnsurePasswordCredential(ctx, u.ID, hash)

@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signup, getMe, beginGoogleLogin, beginGithubLogin } from "@/lib/auth";
+import { validateEmail, validatePassword, getPasswordPolicy } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +41,11 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
     try {
+      const emailErr = validateEmail(email);
+      if (emailErr) throw new Error(emailErr);
+      const pwErr = validatePassword(password, getPasswordPolicy());
+      if (pwErr) throw new Error(pwErr);
+
       const res = await signup(email, password);
       router.push(`/auth/verify?cid=${encodeURIComponent(res.confirmation_id)}&email=${encodeURIComponent(email)}`);
     } catch (err: unknown) {

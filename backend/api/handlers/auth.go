@@ -174,7 +174,18 @@ func (a *AuthAPI) RegisterEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := utils.SignUpEmailPassword(r.Context(), a.Connection, u.Email, u.Password, "")
+	policy := utils.PolicyFromConfig(a.Config)
+	email, err := utils.ValidateEmail(u.Email)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "invalid email", http.StatusBadRequest)
+		return
+	}
+	if err := utils.ValidatePassword(u.Password, policy); err != nil {
+		utils.WriteError(w, a.logger, err, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	_, err = utils.SignUpEmailPassword(r.Context(), a.Connection, email, u.Password, "")
 	if err != nil {
 		if errors.Is(err, utils.ErrEmailTaken) {
 			utils.WriteError(w, a.logger, err, "Email already in use", http.StatusConflict)
@@ -188,7 +199,7 @@ func (a *AuthAPI) RegisterEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := a.EmailClient.SendConfirmationEmail(u.Email, "Confirm your email", 60)
+	id, err := a.EmailClient.SendConfirmationEmail(email, "Confirm your email", 60)
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to send confirmation email", http.StatusInternalServerError)
 		return
@@ -282,9 +293,19 @@ func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	email, err := utils.ValidateEmail(u.Email)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "invalid email", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(u.Password) == "" {
+		utils.WriteError(w, a.logger, errors.New("password required"), "password required", http.StatusBadRequest)
+		return
+	}
+
 	var tokenOnSuccess string
-	err := a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
-		user, err := tx.Users.ByEmail(r.Context(), u.Email)
+	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
+		user, err := tx.Users.ByEmail(r.Context(), email)
 		if err != nil {
 			return err
 		}
@@ -303,7 +324,7 @@ func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
 			return errors.New("invalid password")
 		}
 
-		token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), u.Email, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
+		token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), email, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
 		if err != nil {
 			return err
 		}
@@ -515,6 +536,10 @@ func (a *AuthAPI) ResendEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mail := requestStruct.Email
+	if _, err := utils.ValidateEmail(mail); err != nil {
+		utils.WriteError(w, a.logger, err, "invalid email", http.StatusBadRequest)
+		return
+	}
 
 	count, ttl, err := a.EmailClient.R.IncrementResend(r.Context(), email.VerifyPurpose, mail, 24*time.Hour)
 	if err != nil {
@@ -557,12 +582,10 @@ func (a *AuthAPI) ResetPasswordEndpoint(w http.ResponseWriter, r *http.Request) 
 	}
 
 	mail := requestStruct.Email
-
-	if mail == "" {
-		utils.WriteError(w, a.logger, errors.New("email is required"), "email is required", http.StatusBadRequest)
+	if _, err := utils.ValidateEmail(mail); err != nil {
+		utils.WriteError(w, a.logger, err, "invalid email", http.StatusBadRequest)
 		return
 	}
-
 	mail = strings.ToLower(strings.TrimSpace(mail))
 	u, err := a.Connection.Users.ByEmail(r.Context(), mail)
 	if err != nil {
@@ -630,6 +653,12 @@ func (a *AuthAPI) ResetPasswordConfirmEndpoint(w http.ResponseWriter, r *http.Re
 
 	err := utils.ReadJSON(r.Body, w, a.logger, &requestStruct)
 	if err != nil {
+		return
+	}
+
+	policy := utils.PolicyFromConfig(a.Config)
+	if err := utils.ValidatePassword(requestStruct.Password, policy); err != nil {
+		utils.WriteError(w, a.logger, err, err.Error(), http.StatusBadRequest)
 		return
 	}
 
