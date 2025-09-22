@@ -36,6 +36,11 @@ type Config struct {
 	APP_URL            string
 	BACKEND_PUBLIC_URL string
 
+	WORKOS_API_KEY         string
+	WORKOS_CLIENT_ID       string
+	WORKOS_CONNECTION_ID   string
+	WORKOS_ORGANIZATION_ID string
+
 	GOOGLE_CLIENT_ID     string
 	GOOGLE_CLIENT_SECRET string
 
@@ -133,6 +138,11 @@ func Load() Config {
 		APP_NAME:           getenvStrict("APP_NAME"),
 		APP_URL:            getenvStrict("APP_URL"),
 		BACKEND_PUBLIC_URL: getenvStrict("BACKEND_PUBLIC_URL"),
+
+		WORKOS_API_KEY:         getenvStrict("WORKOS_API_KEY"),
+		WORKOS_CLIENT_ID:       getenvStrict("WORKOS_CLIENT_ID"),
+		WORKOS_CONNECTION_ID:   getenv("WORKOS_CONNECTION_ID", ""),
+		WORKOS_ORGANIZATION_ID: getenv("WORKOS_ORGANIZATION_ID", ""),
 
 		GOOGLE_CLIENT_ID:     getenvStrict("GOOGLE_CLIENT_ID"),
 		GOOGLE_CLIENT_SECRET: getenvStrict("GOOGLE_CLIENT_SECRET"),

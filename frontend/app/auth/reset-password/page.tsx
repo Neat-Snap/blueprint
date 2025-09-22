@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
 import { confirmPasswordReset, getMe } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +20,7 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
 
-  const resetId = params.get("cid") || "";
-  const code = params.get("code") || "";
+  const token = params.get("token") || "";
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +55,7 @@ export default function ResetPasswordPage() {
       return;
     }
     try {
-      await confirmPasswordReset(resetId, code, password);
+      await confirmPasswordReset(token, password);
       router.push("/auth/ready");
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } }; message?: string };
@@ -73,7 +73,7 @@ export default function ResetPasswordPage() {
       <Card className={`w-full max-w-sm ${shake ? "animate-shake" : ""}`}>
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Set a new password</CardTitle>
-          <CardDescription>Enter and confirm your new password</CardDescription>
+          <CardDescription>Enter and confirm your new password.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -95,7 +95,7 @@ export default function ResetPasswordPage() {
                 <p>{error}</p>
               </div>
             )}
-            <Button type="submit" className="w-full" disabled={loading || !resetId || !code}>
+            <Button type="submit" className="w-full" disabled={loading || !token}>
               {loading ? "Saving..." : "Reset password"}
             </Button>
           </form>

@@ -210,15 +210,7 @@ func (h *UsersAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	token, err := utils.GenerateJWT([]byte(h.Config.JWT_SECRET), verifiedEmail, h.Config.JWT_ISSUER, h.Config.JWT_AUDIENCE)
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
-		return
-	}
-
-	returnCookieToken(h.Config.APP_URL, w, token, h.Config)
-
-	returnDefaultPositiveResponse(w, h.logger)
+	utils.WriteSuccess(w, h.logger, utils.DefaultResponse{Message: "Email confirmed", Success: true}, http.StatusOK)
 }
 
 // GET /account/preferences

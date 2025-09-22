@@ -2,12 +2,11 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { resendEmail, confirmEmail, getMe } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import Link from "next/link";
+
+import { resendEmail, getMe } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export default function ResendEmailPage() {
   const router = useRouter();
@@ -16,8 +15,7 @@ export default function ResendEmailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
-  const [confirmationId, setConfirmationId] = useState<string>("");
-  const [code, setCode] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
 
   const email = params.get("email") || "";
 
@@ -32,7 +30,9 @@ export default function ResendEmailPage() {
       } catch {
       }
     })();
-    return () => { cancelled = true };
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   useEffect(() => {
@@ -46,11 +46,11 @@ export default function ResendEmailPage() {
       try {
         const res = await resendEmail(email);
         if (!cancelled) {
-          setConfirmationId(res.confirmation_id);
+          setMessage(res.message || "Verification email sent");
         }
       } catch (err: unknown) {
         const e = err as { response?: { data?: { message?: string } }; message?: string };
-        const msg = e.response?.data?.message || e.message || "Could not resend email";
+        const msg = e.response?.data?.message || e.message || "Could not resend verification email";
         setError(msg);
         setShake(true);
         setTimeout(() => setShake(false), 300);
@@ -58,33 +58,19 @@ export default function ResendEmailPage() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true };
+    return () => {
+      cancelled = true;
+    };
   }, [email]);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      await confirmEmail(confirmationId, code);
-      router.push("/dashboard");
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string } }; message?: string };
-      const msg = e.response?.data?.message || e.message || "Invalid or expired code";
-      setError(msg);
-      setShake(true);
-      setTimeout(() => setShake(false), 300);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   return (
     <div className="min-h-dvh flex items-center justify-center p-4">
       <Card className={`w-full max-w-sm ${shake ? "animate-shake" : ""}`}>
         <CardHeader>
           <h1 className="text-xl font-semibold">Resend verification email</h1>
-          <p className="text-sm text-muted-foreground">{email ? `We’re sending a new code to ${email}.` : "Provide your email to resend the code."}</p>
+          <p className="text-sm text-muted-foreground">
+            {email ? `We’ll send any pending verification to ${email}.` : "Provide your email to resend the link."}
+          </p>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -106,20 +92,23 @@ export default function ResendEmailPage() {
                 <p>{error}</p>
               </div>
               <div className="text-sm">
-                <Link href={`/auth/verify?email=${encodeURIComponent(email)}`} className="text-primary hover:underline">Go back</Link>
+                <Link href="/auth/login" className="text-primary hover:underline">
+                  Back to login
+                </Link>
               </div>
             </div>
           ) : (
-            <form onSubmit={onSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">Enter the new code</Label>
-                <Input id="code" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value)} required />
+            <div className="space-y-4">
+              <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-950/30 dark:text-green-300">
+                {message || "Verification email sent. Please check your inbox."}
               </div>
-              <Button type="submit" className="w-full" disabled={loading || !confirmationId}>
-                {loading ? "Verifying..." : "Verify"}
+              <div className="text-sm text-muted-foreground text-center">
+                Once you verify your email, refresh this page or head back to the login screen.
+              </div>
+              <Button asChild className="w-full" variant="outline">
+                <Link href="/auth/login">Return to login</Link>
               </Button>
-              <p className="text-xs text-muted-foreground text-center">Didn&#39;t get it? You can try again later.</p>
-            </form>
+            </div>
           )}
         </CardContent>
       </Card>

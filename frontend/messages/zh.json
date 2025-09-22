@@ -111,9 +111,18 @@
     },
     "account": {
       "title": "账户与账单",
-      "item1": { "title": "更改邮箱或密码", "body": "请在账户设置中更新。更改邮箱需要通过验证链接确认。" },
-      "item2": { "title": "管理成员", "body": "所有者和管理员可以邀请/移除成员。只有所有者可以更改角色并删除团队。" },
-      "item3": { "title": "导出数据", "body": "目前可通过反馈与我们联系以请求数据导出，我们正在完善内置导出工具。" }
+      "item1": {
+        "title": "更改邮箱或密码",
+        "body": "请在账户设置中更新。更改邮箱需要通过验证链接确认。"
+      },
+      "item2": {
+        "title": "管理成员",
+        "body": "所有者和管理员可以邀请/移除成员。只有所有者可以更改角色并删除团队。"
+      },
+      "item3": {
+        "title": "导出数据",
+        "body": "目前可通过反馈与我们联系以请求数据导出，我们正在完善内置导出工具。"
+      }
     },
     "resources": {
       "title": "资源",
@@ -127,13 +136,11 @@
       "item1": "支持：通过 <code>SUPPORT_EMAIL</code> 配置",
       "item2": "开发者：可选通过 <code>DEVELOPER_EMAIL</code>"
     }
-  }
-  ,
+  },
   "SettingsPage": {
     "title": "团队设置",
     "subtitle": "管理当前团队的名称、成员、角色和删除。"
-  }
-  ,
+  },
   "Layout": {
     "nav": {
       "dashboard": "仪表盘",
@@ -149,12 +156,13 @@
     "send": "发送",
     "loadingDashboard": "正在加载仪表盘",
     "switchingTeam": "正在切换团队",
-    "user": { "fallbackName": "用户" },
+    "user": {
+      "fallbackName": "用户"
+    },
     "feedbackRateLimited": "已达到每日反馈上限，请明天再试。",
     "feedbackSendFailed": "无法发送反馈。请稍后再试或联系 support@statgrad.app。",
     "feedbackThanks": "感谢你的反馈！"
-  }
-  ,
+  },
   "TeamSwitcher": {
     "selectTeam": "选择团队",
     "planFree": "免费",
@@ -170,7 +178,9 @@
       "creating": "创建中...",
       "create": "创建"
     },
-    "icon": { "title": "选择图标" },
+    "icon": {
+      "title": "选择图标"
+    },
     "toast": {
       "created": "团队已创建",
       "createFailed": "无法创建团队。请重试或联系 support@statgrad.app。"
@@ -222,8 +232,7 @@
     "billing": "账单",
     "notifications": "通知",
     "logout": "退出登录"
-  }
-  ,
+  },
   "TeamSettings": {
     "toast": {
       "teamUpdated": "团队已更新",
@@ -307,6 +316,24 @@
       "saving": "保存中...",
       "delete": "删除",
       "sending": "发送中..."
+    }
+  },
+  "Auth": {
+    "Login": {
+      "title": "登录您的账户",
+      "subtitle": "我们会将您重定向到 WorkOS 以安全登录。",
+      "continue": "前往登录",
+      "redirecting": "正在重定向…",
+      "noAccount": "还没有账户？",
+      "signUp": "立即注册"
+    },
+    "Signup": {
+      "title": "创建账户",
+      "subtitle": "我们会将您重定向到 WorkOS 完成注册。",
+      "continue": "前往注册",
+      "redirecting": "正在重定向…",
+      "haveAccount": "已经有账户？",
+      "login": "登录"
     }
   }
 }

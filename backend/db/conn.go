@@ -71,6 +71,7 @@ type AuthRepo interface {
 	FindUserByAuthIdentity(ctx context.Context, ai *AuthIdentity) (*User, error)
 	FindPasswordCredential(ctx context.Context, userID uint) (*PasswordCredential, error)
 	DeleteAuthIdentity(ctx context.Context, userID uint) error
+	UpdateIdentityTokens(ctx context.Context, id uint, accessToken, refreshToken string) error
 }
 
 type InvitationsRepo interface {

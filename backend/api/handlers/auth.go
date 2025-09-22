@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"encoding/gob"
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -12,457 +12,491 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/config"
 	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
+	"github.com/Neat-Snap/blueprint-backend/services"
 	"github.com/Neat-Snap/blueprint-backend/utils"
-	"github.com/Neat-Snap/blueprint-backend/utils/email"
-	"github.com/gorilla/sessions"
-	"github.com/markbates/goth"
-	"github.com/markbates/goth/gothic"
-	"github.com/markbates/goth/providers/github"
-	"github.com/markbates/goth/providers/google"
+	"github.com/workos/workos-go/v4/pkg/usermanagement"
 	"gorm.io/gorm"
 )
-
-type AuthAPI struct {
-	DB            *gorm.DB
-	logger        logger.MultiLogger
-	Connection    *db.Connection
-	EmailClient   *email.EmailClient
-	RedisSecret   string
-	CookieStore   *sessions.CookieStore
-	Environment   string
-	SessionSecret string
-	Config        config.Config
-}
-
-// -----------------------------------
-type EmailPassUserCreds struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
 
 type VerifyUserEmailRequest struct {
 	ConfirmationID string `json:"confirmation_id"`
 	Code           string `json:"code"`
 }
 
-type SignUpWithConfirmationIDResponse struct {
-	ConfirmationID string `json:"confirmation_id"`
-	Success        bool   `json:"success"`
-	Message        string `json:"message"`
+type AuthAPI struct {
+	logger           logger.MultiLogger
+	Connection       *db.Connection
+	Config           config.Config
+	workos           *services.WorkOSAuthService
+	secureCookies    bool
+	frontendReadyURL string
 }
 
-type TokenResponse struct {
-	Token   string `json:"token"`
-	Success bool   `json:"success"`
+func NewAuthAPI(logger logger.MultiLogger, connection *db.Connection, cfg config.Config) (*AuthAPI, error) {
+	workosService, err := services.NewWorkOSAuthService(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+	readyURL := strings.TrimSuffix(cfg.APP_URL, "/") + "/auth/ready"
+	return &AuthAPI{
+		logger:           logger,
+		Connection:       connection,
+		Config:           cfg,
+		workos:           workosService,
+		secureCookies:    cfg.Env == "prod",
+		frontendReadyURL: readyURL,
+	}, nil
 }
 
-type SessionUser struct {
-	Provider     string
-	UserID       string
-	Email        string
-	Name         string
-	AvatarURL    string
-	AccessToken  string
-	RefreshToken string
-	Expiry       time.Time
+func (a *AuthAPI) WorkOSService() *services.WorkOSAuthService {
+	return a.workos
 }
 
-// -----------------------------------
+func (a *AuthAPI) SignupEndpoint(w http.ResponseWriter, r *http.Request) {
+	a.redirectToWorkOS(w, r, usermanagement.SignUp)
+}
 
-// GET /auth/me
+func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
+	a.redirectToWorkOS(w, r, usermanagement.SignIn)
+}
+
+func (a *AuthAPI) CallbackEndpoint(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	query := r.URL.Query()
+	code := strings.TrimSpace(query.Get("code"))
+	state := strings.TrimSpace(query.Get("state"))
+	if code == "" || state == "" {
+		utils.WriteError(w, a.logger, errors.New("missing code or state"), "Missing authorization parameters", http.StatusBadRequest)
+		return
+	}
+
+	stateCookie, err := r.Cookie(services.StateCookieName)
+	if err != nil || stateCookie == nil || stateCookie.Value == "" || stateCookie.Value != state {
+		utils.WriteError(w, a.logger, errors.New("invalid state"), "Invalid state parameter", http.StatusUnauthorized)
+		return
+	}
+	a.clearStateCookie(w)
+
+	authResp, err := a.workos.AuthenticateWithCode(ctx, code, clientIP(r), r.UserAgent())
+	if err != nil {
+		a.handleWorkOSError(w, err, "Authentication failed")
+		return
+	}
+
+	user, err := a.upsertWorkOSUser(ctx, authResp)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "Failed to persist user", http.StatusInternalServerError)
+		return
+	}
+
+	claims, err := a.workos.ParseAccessToken(authResp.AccessToken)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "Failed to parse access token", http.StatusInternalServerError)
+		return
+	}
+	a.setAuthCookies(w, authResp.AccessToken, claims)
+
+	if err := a.ensureDefaultTeam(ctx, user); err != nil {
+		a.logger.Warn("failed to ensure default team after login", "error", err)
+	}
+
+	http.Redirect(w, r, a.frontendReadyURL, http.StatusFound)
+}
+
 func (a *AuthAPI) MeEndpoint(w http.ResponseWriter, r *http.Request) {
-	c, err := r.Cookie("token")
-	if err != nil || c == nil || c.Value == "" {
+	ctx := r.Context()
+	tokenCookie, err := r.Cookie(services.AccessTokenCookieName)
+	if err != nil || tokenCookie == nil || tokenCookie.Value == "" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	email, err := utils.DecodeJWT([]byte(a.Config.JWT_SECRET), c.Value, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
+	claims, err := a.workos.ParseAccessToken(tokenCookie.Value)
 	if err != nil {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
+		a.clearAuthCookies(w)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	u, err := a.Connection.Users.ByEmail(r.Context(), email)
+	identity, err := a.Connection.Auth.FindAuthIdentity(ctx, services.WorkOSProvider, claims.Subject)
 	if err != nil {
-		http.Error(w, "user not found", http.StatusUnauthorized)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			a.clearAuthCookies(w)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		utils.WriteError(w, a.logger, err, "Failed to load auth identity", http.StatusInternalServerError)
+		return
+	}
+
+	refresh := ""
+	if identity.RefreshToken != nil {
+		refresh = strings.TrimSpace(*identity.RefreshToken)
+	}
+	if refresh == "" {
+		a.clearAuthCookies(w)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	refreshed, err := a.workos.AuthenticateWithRefreshToken(ctx, refresh, clientIP(r), r.UserAgent())
+	if err != nil {
+		var workosErr *services.WorkOSError
+		if errors.As(err, &workosErr) && workosErr.Status == http.StatusUnauthorized {
+			a.clearAuthCookies(w)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		a.handleWorkOSError(w, err, "Failed to refresh session")
+		return
+	}
+
+	newClaims, err := a.workos.ParseAccessToken(refreshed.AccessToken)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "Failed to parse refreshed access token", http.StatusInternalServerError)
+		return
+	}
+
+	if err := a.Connection.Auth.UpdateIdentityTokens(ctx, identity.ID, refreshed.AccessToken, refreshed.RefreshToken); err != nil {
+		utils.WriteError(w, a.logger, err, "Failed to persist refreshed tokens", http.StatusInternalServerError)
+		return
+	}
+
+	a.setAuthCookies(w, refreshed.AccessToken, newClaims)
+
+	user, err := a.Connection.Auth.FindUserByAuthIdentity(ctx, identity)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "Failed to load user", http.StatusInternalServerError)
 		return
 	}
 
 	resp := map[string]any{
-		"id":    u.ID,
-		"email": u.Email,
-		"name":  u.Name,
+		"id":    user.ID,
+		"email": "",
+		"name":  "",
 	}
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(resp)
+	if user.Email != nil {
+		resp["email"] = *user.Email
+	}
+	if user.Name != nil {
+		resp["name"] = *user.Name
+	}
+
+	utils.WriteSuccess(w, a.logger, resp, http.StatusOK)
 }
 
-func returnCookieToken(origin string, w http.ResponseWriter, token string, cfg config.Config) {
-	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+func (a *AuthAPI) LogoutEndpoint(w http.ResponseWriter, r *http.Request) {
+	var sessionID string
+	if c, err := r.Cookie(services.SessionIDCookieName); err == nil && c != nil {
+		sessionID = strings.TrimSpace(c.Value)
+	}
+	if sessionID == "" {
+		if c, err := r.Cookie(services.AccessTokenCookieName); err == nil && c != nil {
+			if claims, err := a.workos.ParseAccessToken(c.Value); err == nil {
+				sessionID = claims.SessionID
+			}
+		}
+	}
 
-	secure := cfg.Env == "prod"
-	sameSite := http.SameSiteStrictMode
+	if sessionID != "" {
+		if err := a.workos.RevokeSession(r.Context(), sessionID); err != nil {
+			var workosErr *services.WorkOSError
+			if !(errors.As(err, &workosErr) && workosErr.Status == http.StatusUnauthorized) {
+				a.logger.Warn("failed to revoke workos session", "error", err)
+			}
+		}
+	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: sameSite,
-		MaxAge:   3600 * 24 * 21,
-	})
+	a.clearAuthCookies(w)
+	utils.WriteSuccess(w, a.logger, utils.DefaultResponse{Message: "Logged out", Success: true}, http.StatusOK)
 }
 
-func returnDefaultPositiveResponse(w http.ResponseWriter, log logger.MultiLogger) {
-	var r utils.DefaultResponse
-	w.WriteHeader(http.StatusOK)
-	err := json.NewEncoder(w).Encode(r)
+func (a *AuthAPI) ResendEmailEndpoint(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Email string `json:"email"`
+	}
+	if err := utils.ReadJSON(r.Body, w, a.logger, &payload); err != nil {
+		return
+	}
+	email, err := utils.ValidateEmail(payload.Email)
 	if err != nil {
-		utils.WriteError(w, log, err, "output error occured", http.StatusInternalServerError)
-	}
-
-}
-
-// func tokenResponse(w http.ResponseWriter, token string, logger logger.MultiLogger) {
-// 	w.WriteHeader(http.StatusOK)
-// 	if err := json.NewEncoder(w).Encode(TokenResponse{Token: token, Success: true}); err != nil {
-// 		logger.Warn("failed to encode response", "error", err)
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		return
-// 	}
-// }
-
-func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connection, emailClient *email.EmailClient, redisSecret string, environment string, sessionSecret string, config config.Config) *AuthAPI {
-	gob.Register(SessionUser{})
-	logger.Info("app url from config is", "app_url", config.BACKEND_PUBLIC_URL)
-	cookieStore := sessions.NewCookieStore([]byte(sessionSecret))
-	cookieStore.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   3600 * 8,
-		HttpOnly: true,
-		Secure:   environment == "prod",
-		SameSite: http.SameSiteLaxMode,
-	}
-	gothic.Store = cookieStore
-
-	goth.UseProviders(
-		google.New(
-			config.GOOGLE_CLIENT_ID,
-			config.GOOGLE_CLIENT_SECRET,
-			fmt.Sprintf("%s/auth/google/callback", config.BACKEND_PUBLIC_URL),
-			"openid", "email", "profile",
-		),
-		github.New(
-			config.GITHUB_CLIENT_ID,
-			config.GITHUB_CLIENT_SECRET,
-			fmt.Sprintf("%s/auth/github/callback", config.BACKEND_PUBLIC_URL),
-			"read:user",
-		),
-	)
-
-	return &AuthAPI{DB: db, logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret, CookieStore: cookieStore, Environment: environment, SessionSecret: sessionSecret, Config: config}
-}
-
-// POST /auth/register
-func (a *AuthAPI) RegisterEndpoint(w http.ResponseWriter, r *http.Request) {
-	var u EmailPassUserCreds
-	if err := utils.ReadJSON(r.Body, w, a.logger, &u); err != nil {
+		utils.WriteError(w, a.logger, err, "Invalid email", http.StatusBadRequest)
 		return
 	}
 
+	lookup, err := a.workos.ListUsersByEmail(r.Context(), email)
+	if err != nil {
+		a.handleWorkOSError(w, err, "Failed to locate user")
+		return
+	}
+	if len(lookup.Data) == 0 {
+		utils.WriteError(w, a.logger, errors.New("user not found"), "User not found", http.StatusNotFound)
+		return
+	}
+
+	if err := a.workos.SendVerificationEmail(r.Context(), lookup.Data[0].ID); err != nil {
+		a.handleWorkOSError(w, err, "Failed to send verification email")
+		return
+	}
+
+	utils.WriteSuccess(w, a.logger, utils.DefaultResponse{Message: "Verification email sent", Success: true}, http.StatusOK)
+}
+
+func (a *AuthAPI) ResetPasswordEndpoint(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Email string `json:"email"`
+	}
+	if err := utils.ReadJSON(r.Body, w, a.logger, &payload); err != nil {
+		return
+	}
+	email, err := utils.ValidateEmail(payload.Email)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "Invalid email", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := a.workos.CreatePasswordReset(r.Context(), email); err != nil {
+		a.handleWorkOSError(w, err, "Failed to request password reset")
+		return
+	}
+
+	utils.WriteSuccess(w, a.logger, utils.DefaultResponse{Message: "Password reset email sent", Success: true}, http.StatusOK)
+}
+
+func (a *AuthAPI) ResetPasswordConfirmEndpoint(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Token    string `json:"token"`
+		Password string `json:"password"`
+	}
+	if err := utils.ReadJSON(r.Body, w, a.logger, &payload); err != nil {
+		return
+	}
 	policy := utils.PolicyFromConfig(a.Config)
-	email, err := utils.ValidateEmail(u.Email)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "invalid email", http.StatusBadRequest)
-		return
-	}
-	if err := utils.ValidatePassword(u.Password, policy); err != nil {
+	if err := utils.ValidatePassword(payload.Password, policy); err != nil {
 		utils.WriteError(w, a.logger, err, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	_, err = utils.SignUpEmailPassword(r.Context(), a.Connection, email, u.Password, "")
-	if err != nil {
-		if errors.Is(err, utils.ErrEmailTaken) {
-			utils.WriteError(w, a.logger, err, "Email already in use", http.StatusConflict)
-			return
-		}
-		if errors.Is(err, utils.ErrOAuthOnlyAccount) {
-			utils.WriteError(w, a.logger, err, "This email is registered via Google. Please continue with Google.", http.StatusConflict)
-			return
-		}
-		utils.WriteError(w, a.logger, err, "Could not register", http.StatusInternalServerError)
+	if _, err := a.workos.ResetPassword(r.Context(), payload.Token, payload.Password); err != nil {
+		a.handleWorkOSError(w, err, "Failed to reset password")
 		return
 	}
 
-	id, err := a.EmailClient.SendConfirmationEmail(email, "Confirm your email", 60)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "Failed to send confirmation email", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(SignUpWithConfirmationIDResponse{Message: "User registered successfully", Success: true, ConfirmationID: id}); err != nil {
-		a.logger.Warn("failed to encode response", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	utils.WriteSuccess(w, a.logger, utils.DefaultResponse{Message: "Password updated", Success: true}, http.StatusOK)
 }
 
-// POST /auth/confirm-email
-func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
-	var reqData VerifyUserEmailRequest
-	if err := utils.ReadJSON(r.Body, w, a.logger, &reqData); err != nil {
-		return
-	}
-
-	verifiedEmail, err := a.EmailClient.R.Verify(r.Context(), []byte(a.RedisSecret), email.VerifyPurpose, reqData.ConfirmationID, reqData.Code)
+func (a *AuthAPI) redirectToWorkOS(w http.ResponseWriter, r *http.Request, hint usermanagement.ScreenHint) {
+	state, err := a.workos.GenerateState()
 	if err != nil {
-		switch {
-		case errors.Is(err, email.ErrNotFound), errors.Is(err, email.ErrExpired):
-			utils.WriteError(w, a.logger, err, "Invalid or expired code", http.StatusBadRequest)
-		case errors.Is(err, email.ErrConsumed):
-			utils.WriteError(w, a.logger, err, "Code already used", http.StatusBadRequest)
-		case errors.Is(err, email.ErrMismatch):
-			utils.WriteError(w, a.logger, err, "Invalid code", http.StatusBadRequest)
-		case errors.Is(err, email.ErrTooMany):
-			utils.WriteError(w, a.logger, err, "Too many attempts, try again later", http.StatusTooManyRequests)
-		default:
-			utils.WriteError(w, a.logger, err, "Failed to verify email", http.StatusInternalServerError)
-		}
+		utils.WriteError(w, a.logger, err, "Failed to generate state", http.StatusInternalServerError)
 		return
 	}
+	a.setStateCookie(w, state)
 
-	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
-		u, err := tx.Users.ByEmail(r.Context(), verifiedEmail)
-		if err != nil {
-			return err
-		}
-		now := time.Now()
-		u.EmailVerifiedAt = &now
-		if err := tx.Users.Update(r.Context(), u); err != nil {
-			return err
-		}
+	authURL, err := a.workos.AuthorizationURL(state, hint)
+	if err != nil {
+		a.handleWorkOSError(w, err, "Failed to create authorization URL")
+		return
+	}
+	http.Redirect(w, r, authURL.String(), http.StatusFound)
+}
 
-		existing, err := tx.Teams.ListForUser(r.Context(), u.ID)
-		if err != nil {
-			return err
-		}
-		if len(existing) == 0 {
-			name := "My team"
-			if u.Name != nil && *u.Name != "" {
-				name = *u.Name + "'s team"
-			}
-			ws := &db.Team{
-				Name:    name,
-				OwnerID: u.ID,
-				Owner:   *u,
-				Users:   []db.User{*u},
-			}
-			if err := tx.Teams.Create(r.Context(), ws); err != nil {
-				return err
-			}
-			_ = tx.Teams.AddMember(r.Context(), ws.ID, u.ID, "owner")
-		}
-		return nil
+func (a *AuthAPI) setStateCookie(w http.ResponseWriter, state string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     services.StateCookieName,
+		Value:    state,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   a.secureCookies,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   300,
 	})
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "Failed to verify email", http.StatusInternalServerError)
-		return
-	}
-
-	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), verifiedEmail, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
-		return
-	}
-
-	returnCookieToken(a.Config.APP_URL, w, token, a.Config)
-
-	returnDefaultPositiveResponse(w, a.logger)
 }
 
-// POST /auth/login
-func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
-	var u EmailPassUserCreds
-	if err := utils.ReadJSON(r.Body, w, a.logger, &u); err != nil {
-		return
-	}
-
-	email, err := utils.ValidateEmail(u.Email)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "invalid email", http.StatusBadRequest)
-		return
-	}
-	if strings.TrimSpace(u.Password) == "" {
-		utils.WriteError(w, a.logger, errors.New("password required"), "password required", http.StatusBadRequest)
-		return
-	}
-
-	var tokenOnSuccess string
-	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
-		user, err := tx.Users.ByEmail(r.Context(), email)
-		if err != nil {
-			return err
-		}
-
-		// Guard against users who registered via OAuth and do not have a password credential
-		if user.PasswordCredential == nil || user.PasswordCredential.PasswordDisabled {
-			return utils.ErrOAuthOnlyAccount
-		}
-
-		ok, err := utils.ComparePassword(u.Password, user.PasswordCredential.PasswordHash)
-		if err != nil {
-			return err
-		}
-
-		if !ok {
-			return errors.New("invalid password")
-		}
-
-		token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), email, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
-		if err != nil {
-			return err
-		}
-
-		tokenOnSuccess = token
-		return nil
+func (a *AuthAPI) clearStateCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     services.StateCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Secure:   a.secureCookies,
+		SameSite: http.SameSiteLaxMode,
 	})
+}
 
-	if err != nil {
-		if errors.Is(err, utils.ErrOAuthOnlyAccount) {
-			utils.WriteError(w, a.logger, err, "This account uses Google sign-in. Please continue with Google.", http.StatusConflict)
-			return
+func (a *AuthAPI) setAuthCookies(w http.ResponseWriter, token string, claims services.AccessTokenClaims) {
+	maxAge := int(time.Until(claims.ExpiresAt).Seconds())
+	if maxAge <= 0 {
+		maxAge = 3600
+	}
+	accessCookie := &http.Cookie{
+		Name:     services.AccessTokenCookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   a.secureCookies,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   maxAge,
+	}
+	if !claims.ExpiresAt.IsZero() {
+		accessCookie.Expires = claims.ExpiresAt
+	}
+	http.SetCookie(w, accessCookie)
+
+	if claims.SessionID != "" {
+		sessionCookie := &http.Cookie{
+			Name:     services.SessionIDCookieName,
+			Value:    claims.SessionID,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   a.secureCookies,
+			SameSite: http.SameSiteStrictMode,
+			MaxAge:   maxAge,
 		}
-		utils.WriteError(w, a.logger, err, "Invalid email or password", http.StatusUnauthorized)
-		return
+		if !claims.ExpiresAt.IsZero() {
+			sessionCookie.Expires = claims.ExpiresAt
+		}
+		http.SetCookie(w, sessionCookie)
 	}
-
-	returnCookieToken(a.Config.APP_URL, w, tokenOnSuccess, a.Config)
-
-	returnDefaultPositiveResponse(w, a.logger)
 }
 
-// GET /auth/{provider}
-func (a *AuthAPI) ProviderBeginAuthEndpoint(w http.ResponseWriter, r *http.Request) {
-	// if gothUser, err := gothic.CompleteUserAuth(res, req); err == nil {
-	// 	t, _ := template.New("foo").Parse(userTemplate)
-	// 	t.Execute(res, gothUser)
-	// } else {
-	// 	gothic.BeginAuthHandler(res, req)
-	// }
-	gothic.BeginAuthHandler(w, r)
+func (a *AuthAPI) clearAuthCookies(w http.ResponseWriter) {
+	expired := time.Unix(0, 0)
+	http.SetCookie(w, &http.Cookie{
+		Name:     services.AccessTokenCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  expired,
+		HttpOnly: true,
+		Secure:   a.secureCookies,
+		SameSite: http.SameSiteStrictMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     services.SessionIDCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  expired,
+		HttpOnly: true,
+		Secure:   a.secureCookies,
+		SameSite: http.SameSiteStrictMode,
+	})
 }
 
-// POST /auth/{provider}/callback
-func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Request) {
-	u, err := gothic.CompleteUserAuth(w, r)
+func clientIP(r *http.Request) string {
+	if xff := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); xff != "" {
+		parts := strings.Split(xff, ",")
+		if len(parts) > 0 {
+			return strings.TrimSpace(parts[0])
+		}
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
 	if err != nil {
-		a.logger.Error("failed to complete auth...", "error", err)
-		utils.WriteError(w, a.logger, err, "Authentication failed", http.StatusUnauthorized)
-		return
+		return strings.TrimSpace(r.RemoteAddr)
 	}
+	return host
+}
 
-	provider := strings.ToLower(strings.TrimSpace(u.Provider))
-	subject := strings.TrimSpace(u.UserID)
-
-	if provider == "" || subject == "" {
-		http.Error(w, "invalid provider response", http.StatusBadRequest)
-		return
-	}
-
-	email := utils.NormalizeEmail(u.Email)
-
-	name := utils.PickNonEmpty(u.Name, u.NickName)
+func (a *AuthAPI) upsertWorkOSUser(ctx context.Context, authResp usermanagement.AuthenticateResponse) (*db.User, error) {
+	email := utils.NormalizeEmail(authResp.User.Email)
+	fullName := strings.TrimSpace(strings.TrimSpace(authResp.User.FirstName + " " + authResp.User.LastName))
+	avatar := strings.TrimSpace(authResp.User.ProfilePictureURL)
 	now := time.Now()
-	dbUser := &db.User{
-		Email:           &email,
-		Name:            &name,
-		EmailVerifiedAt: &now,
-		AvatarURL:       &u.AvatarURL,
-	}
+	var out *db.User
 
-	a.logger.Debug("got user from provider: ", "user", u)
-
-	var signedInUser *db.User
-	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
-		if ai, err := tx.Auth.FindAuthIdentity(r.Context(), provider, subject); err == nil {
-			a.logger.Debug("found auth identity", "provider", provider, "subject", subject)
-			signedUser, err := tx.Auth.FindUserByAuthIdentity(r.Context(), ai)
-			if err != nil {
-				return err
-			}
-			signedInUser = signedUser
-			return nil
+	err := a.Connection.WithTx(ctx, func(tx *db.Connection) error {
+		user, err := tx.Auth.FindAuthIdentity(ctx, services.WorkOSProvider, authResp.User.ID)
+		if err == nil {
+			out = user.User
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			a.logger.Error("failed to find auth identity", "error", err)
 			return err
 		}
 
-		// todo add a check for users who already have a valid cookie
+		if out == nil && email != "" {
+			if existing, err := tx.Users.ByEmail(ctx, email); err == nil {
+				out = existing
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
 
-		if curr, err := tx.Users.ByEmail(r.Context(), email); err == nil {
-			// User with this email already exists, link the new auth identity to them.
-			if err := tx.Auth.LinkIdentity(r.Context(), curr.ID, provider, subject, &email, &u.AccessToken, &u.RefreshToken); err != nil {
-				if utils.IsUniqueViolation(err, "uniq_provider_subject") {
-					ai, err2 := tx.Auth.FindAuthIdentity(r.Context(), provider, subject)
+		created := false
+		if out == nil {
+			out = &db.User{}
+			created = true
+		}
+
+		if email != "" {
+			if out.Email == nil || *out.Email != email {
+				emailCopy := email
+				out.Email = &emailCopy
+			}
+		}
+		if fullName != "" {
+			if out.Name == nil || *out.Name != fullName {
+				nameCopy := fullName
+				out.Name = &nameCopy
+			}
+		}
+		if avatar != "" {
+			if out.AvatarURL == nil || *out.AvatarURL != avatar {
+				avatarCopy := avatar
+				out.AvatarURL = &avatarCopy
+			}
+		}
+		if authResp.User.EmailVerified {
+			if out.EmailVerifiedAt == nil {
+				verified := now
+				out.EmailVerifiedAt = &verified
+			}
+		}
+
+		if created {
+			if err := tx.Users.Create(ctx, out); err != nil {
+				if utils.IsUniqueViolation(err, "uniq_users_email") && email != "" {
+					existing, err2 := tx.Users.ByEmail(ctx, email)
 					if err2 != nil {
 						return err2
 					}
-
-					signedUser, err := tx.Auth.FindUserByAuthIdentity(r.Context(), ai)
-					if err != nil {
-						return err
-					}
-
-					signedInUser = signedUser
-					return nil
-				}
-				return err
-			}
-
-			signedInUser = curr
-			return nil
-		}
-
-		if err := tx.Users.Create(r.Context(), dbUser); err != nil {
-			if utils.IsUniqueViolation(err, "uniq_users_email") {
-				u2, err2 := tx.Users.ByEmail(r.Context(), email)
-				if err2 != nil {
-					return err2
-				}
-				if err := tx.Auth.LinkIdentity(r.Context(), u2.ID, provider, subject, &email, &u.AccessToken, &u.RefreshToken); err != nil {
+					out = existing
+					created = false
+				} else {
 					return err
 				}
-				signedInUser = u2
-				return nil
+			} else {
+				if err := tx.Preferences.Create(ctx, out.ID); err != nil {
+					return err
+				}
+			}
+		} else {
+			if err := tx.Users.Update(ctx, out); err != nil {
+				return err
 			}
 		}
 
-		if err := tx.Auth.LinkIdentity(r.Context(), dbUser.ID, provider, subject, &email, &u.AccessToken, &u.RefreshToken); err != nil {
+		providerEmail := email
+		accessToken := authResp.AccessToken
+		refreshToken := authResp.RefreshToken
+		if err := tx.Auth.LinkIdentity(ctx, out.ID, services.WorkOSProvider, authResp.User.ID, &providerEmail, &accessToken, &refreshToken); err != nil {
 			return err
 		}
-
-		if err := tx.Preferences.Create(r.Context(), dbUser.ID); err != nil {
-			return err
-		}
-
-		signedInUser = dbUser
 		return nil
 	})
-
 	if err != nil {
-		a.logger.Error("failed to complete auth with provider "+provider, "error", err)
-		http.Error(w, "auth failed: "+err.Error(), http.StatusUnauthorized)
-		return
+		return nil, err
 	}
+	return out, nil
+}
 
-	if terr := a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
-		existing, err := tx.Teams.ListForUser(r.Context(), signedInUser.ID)
+func (a *AuthAPI) ensureDefaultTeam(ctx context.Context, user *db.User) error {
+	if user == nil {
+		return nil
+	}
+	return a.Connection.WithTx(ctx, func(tx *db.Connection) error {
+		existing, err := tx.Teams.ListForUser(ctx, user.ID)
 		if err != nil {
 			return err
 		}
@@ -470,228 +504,38 @@ func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Reques
 			return nil
 		}
 		name := "My team"
-		if signedInUser.Name != nil && *signedInUser.Name != "" {
-			name = *signedInUser.Name + "'s team"
+		if user.Name != nil {
+			trimmed := strings.TrimSpace(*user.Name)
+			if trimmed != "" {
+				name = fmt.Sprintf("%s's team", trimmed)
+			}
 		}
-		ws := &db.Team{
+		team := &db.Team{
 			Name:    name,
-			OwnerID: signedInUser.ID,
-			Owner:   *signedInUser,
-			Users:   []db.User{*signedInUser},
+			OwnerID: user.ID,
+			Owner:   *user,
+			Users:   []db.User{*user},
 		}
-		if err := tx.Teams.Create(r.Context(), ws); err != nil {
+		if err := tx.Teams.Create(ctx, team); err != nil {
 			return err
 		}
-		_ = tx.Teams.AddMember(r.Context(), ws.ID, signedInUser.ID, "owner")
-		return nil
-	}); terr != nil {
-		a.logger.Warn("failed to ensure default team on oauth sign-in", "error", terr)
-	}
-
-	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), *signedInUser.Email, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
-		return
-	}
-
-	returnCookieToken(a.Config.APP_URL, w, token, a.Config)
-
-	http.Redirect(w, r, a.Config.APP_URL+"/auth/ready", http.StatusFound)
-}
-
-// GET /auth/logout
-func (a *AuthAPI) LogoutEndpoint(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		Expires:  time.Unix(0, 0),
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-	})
-
-	w.WriteHeader(http.StatusOK)
-	var response utils.DefaultResponse
-	response.Success = true
-	response.Message = "Logged out successfully"
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		a.logger.Warn("failed to encode response", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-}
-
-// POST /auth/resend-email
-func (a *AuthAPI) ResendEmailEndpoint(w http.ResponseWriter, r *http.Request) {
-	var requestStruct struct {
-		Email string `json:"email"`
-	}
-
-	err := utils.ReadJSON(r.Body, w, a.logger, &requestStruct)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	mail := requestStruct.Email
-	if _, err := utils.ValidateEmail(mail); err != nil {
-		utils.WriteError(w, a.logger, err, "invalid email", http.StatusBadRequest)
-		return
-	}
-
-	count, ttl, err := a.EmailClient.R.IncrementResend(r.Context(), email.VerifyPurpose, mail, 24*time.Hour)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
-		return
-	}
-	if count > 3 {
-		utils.WriteError(
-			w,
-			a.logger,
-			email.ErrLimitReached,
-			fmt.Sprintf("limit reached. Try again in %d seconds", int(ttl.Seconds())),
-			http.StatusTooManyRequests,
-		)
-		return
-	}
-	id, err := a.EmailClient.SendConfirmationEmail(mail, "Confirm your email", 60)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "error sending confirmation email", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(SignUpWithConfirmationIDResponse{Message: "User registered successfully", Success: true, ConfirmationID: id}); err != nil {
-		a.logger.Warn("failed to encode response", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-}
-
-func (a *AuthAPI) ResetPasswordEndpoint(w http.ResponseWriter, r *http.Request) {
-	var requestStruct struct {
-		Email string `json:"email"`
-	}
-
-	err := utils.ReadJSON(r.Body, w, a.logger, &requestStruct)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	mail := requestStruct.Email
-	if _, err := utils.ValidateEmail(mail); err != nil {
-		utils.WriteError(w, a.logger, err, "invalid email", http.StatusBadRequest)
-		return
-	}
-	mail = strings.ToLower(strings.TrimSpace(mail))
-	u, err := a.Connection.Users.ByEmail(r.Context(), mail)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "user not found", http.StatusNotFound)
-		return
-	}
-
-	if u.PasswordCredential == nil || u.PasswordCredential.PasswordDisabled {
-		utils.WriteError(w, a.logger, utils.ErrOAuthOnlyAccount, "oauth only account", http.StatusUnauthorized)
-		return
-	}
-
-	if ok, ttl, err := a.EmailClient.R.AllowOncePer(r.Context(), email.ResetPasswordPurpose, mail, 72*time.Hour); err != nil {
-		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
-		return
-	} else if !ok {
-		utils.WriteError(
-			w,
-			a.logger,
-			email.ErrLimitReached,
-			fmt.Sprintf("Password reset already requested recently. Try again in %d hours", int(ttl.Hours())),
-			http.StatusTooManyRequests,
-		)
-		return
-	}
-
-	count, ttl, err := a.EmailClient.R.IncrementResend(r.Context(), email.ResetPasswordPurpose, mail, 4*time.Hour)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if count > 3 {
-		utils.WriteError(w, a.logger, email.ErrLimitReached, fmt.Sprintf("limit reached. Try again in %d seconds", int(ttl.Seconds())), http.StatusTooManyRequests)
-		return
-	}
-
-	if _, err := a.EmailClient.SendResetPasswordEmail(mail, "Reset your password", 60); err != nil {
-		utils.WriteError(w, a.logger, err, "error sending reset password email", http.StatusInternalServerError)
-		return
-	}
-
-	resp := struct {
-		Message string `json:"message"`
-		Success bool   `json:"success"`
-	}{
-		Message: "Reset password email sent successfully",
-		Success: true,
-	}
-
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		a.logger.Warn("failed to encode response", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-}
-
-func (a *AuthAPI) ResetPasswordConfirmEndpoint(w http.ResponseWriter, r *http.Request) {
-	var requestStruct struct {
-		ResetID  string `json:"reset_password_id"`
-		Code     string `json:"code"`
-		Password string `json:"password"`
-	}
-
-	err := utils.ReadJSON(r.Body, w, a.logger, &requestStruct)
-	if err != nil {
-		return
-	}
-
-	policy := utils.PolicyFromConfig(a.Config)
-	if err := utils.ValidatePassword(requestStruct.Password, policy); err != nil {
-		utils.WriteError(w, a.logger, err, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	mail_address, err := a.EmailClient.R.Verify(r.Context(), []byte(a.RedisSecret), email.ResetPasswordPurpose, requestStruct.ResetID, requestStruct.Code)
-	if err != nil {
-		switch {
-		case errors.Is(err, email.ErrNotFound), errors.Is(err, email.ErrExpired):
-			utils.WriteError(w, a.logger, err, "Invalid or expired code", http.StatusBadRequest)
-		case errors.Is(err, email.ErrConsumed):
-			utils.WriteError(w, a.logger, err, "Code already used", http.StatusBadRequest)
-		case errors.Is(err, email.ErrMismatch):
-			utils.WriteError(w, a.logger, err, "Invalid code", http.StatusBadRequest)
-		case errors.Is(err, email.ErrTooMany):
-			utils.WriteError(w, a.logger, err, "Too many attempts, try again later", http.StatusTooManyRequests)
-		default:
-			utils.WriteError(w, a.logger, err, "Failed to verify email", http.StatusInternalServerError)
+		if err := tx.Teams.AddMember(ctx, team.ID, user.ID, "owner"); err != nil {
+			a.logger.Warn("failed to add owner to default team", "error", err)
 		}
+		return nil
+	})
+}
+
+func (a *AuthAPI) handleWorkOSError(w http.ResponseWriter, err error, fallback string) {
+	var workosErr *services.WorkOSError
+	if errors.As(err, &workosErr) {
+		status := workosErr.Status
+		message := fallback
+		if strings.TrimSpace(workosErr.Message) != "" {
+			message = workosErr.Message
+		}
+		utils.WriteError(w, a.logger, err, message, status)
 		return
 	}
-
-	err = utils.ResetPassword(r.Context(), a.Connection, mail_address, requestStruct.Password)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "Failed to update password", http.StatusInternalServerError)
-		return
-	}
-
-	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), mail_address, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "Failed to generate token", http.StatusInternalServerError)
-		return
-	}
-
-	returnCookieToken(a.Config.APP_URL, w, token, a.Config)
-
-	http.Redirect(w, r, a.Config.APP_URL+"/auth/ready?password_reset=true", http.StatusFound)
+	utils.WriteError(w, a.logger, err, fallback, http.StatusBadGateway)
 }

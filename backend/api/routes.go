@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/Neat-Snap/blueprint-backend/api/handlers"
@@ -42,23 +43,26 @@ func NewRouter(c RouterConfig) chi.Router {
 		httprate.WithKeyFuncs(httprate.KeyByIP, httprate.KeyByEndpoint),
 	))
 
-	r.Use(mw.AuthMiddlewareBuilder(c.Config.JWT_SECRET, c.Config.JWT_ISSUER, c.Config.JWT_AUDIENCE, c.Logger, c.Connection, mw.DefaultSkipper))
+	authAPI, err := handlers.NewAuthAPI(c.Logger, c.Connection, c.Config)
+	if err != nil {
+		c.Logger.Fatal("failed to initialise auth api", "error", err)
+	}
+	r.Use(mw.AuthMiddlewareBuilder(c.Logger, c.Connection, authAPI.WorkOSService(), c.Config.Env == "prod", mw.DefaultSkipper))
 
 	api := handlers.NewTestHealthAPI(c.DB, c.Logger)
 	r.Get("/health", api.HealthHandler)
 
 	feedbackAPI := handlers.NewFeedbackAPI(c.Logger, c.Connection, c.EmailClient, c.Config)
 	r.With(mw.Confirmation(c.Config, c.EmailClient.R)).Post("/feedback", feedbackAPI.SubmitEndpoint)
-
-	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Env, c.Config.SESSION_SECRET, c.Config)
 	r.Route("/auth", func(r chi.Router) {
-		r.Post("/signup", authAPI.RegisterEndpoint)
-		r.Post("/confirm-email", authAPI.ConfirmEmailEndpoint)
-		r.Post("/login", authAPI.LoginEndpoint)
-		r.Get("/{provider}", authAPI.ProviderBeginAuthEndpoint)
-		r.Get("/{provider}/callback", authAPI.ProviderCallbackEndpoint)
+		r.Method(http.MethodGet, "/signup", http.HandlerFunc(authAPI.SignupEndpoint))
+		r.Method(http.MethodPost, "/signup", http.HandlerFunc(authAPI.SignupEndpoint))
+		r.Method(http.MethodGet, "/login", http.HandlerFunc(authAPI.LoginEndpoint))
+		r.Method(http.MethodPost, "/login", http.HandlerFunc(authAPI.LoginEndpoint))
+		r.Get("/callback", authAPI.CallbackEndpoint)
 		r.With(mw.Confirmation(c.Config, c.EmailClient.R)).Get("/me", authAPI.MeEndpoint)
-		r.Get("/logout", authAPI.LogoutEndpoint)
+		r.Method(http.MethodGet, "/logout", http.HandlerFunc(authAPI.LogoutEndpoint))
+		r.Method(http.MethodPost, "/logout", http.HandlerFunc(authAPI.LogoutEndpoint))
 		r.Post("/resend-email", authAPI.ResendEmailEndpoint)
 		r.Post("/password/reset", authAPI.ResetPasswordEndpoint)
 		r.Post("/password/confirm", authAPI.ResetPasswordConfirmEndpoint)

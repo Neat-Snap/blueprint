@@ -30,12 +30,42 @@ func (r *authRepo) FindUserByAuthIdentity(ctx context.Context, ai *AuthIdentity)
 
 func (r *authRepo) LinkIdentity(ctx context.Context, userID uint, provider, subject string, providerEmail, accessToken, refreshToken *string) error {
 	ai := AuthIdentity{
-		UserID: userID, Provider: provider, Subject: subject, ProviderEmail: providerEmail, AccessToken: accessToken, RefreshToken: refreshToken,
+		UserID:        userID,
+		Provider:      provider,
+		Subject:       subject,
+		ProviderEmail: providerEmail,
+		AccessToken:   accessToken,
+		RefreshToken:  refreshToken,
 	}
-	// rely on UNIQUE(provider,subject)
+	assignments := clause.Assignments(map[string]interface{}{
+		"user_id":        gorm.Expr("excluded.user_id"),
+		"provider_email": gorm.Expr("excluded.provider_email"),
+		"access_token":   gorm.Expr("excluded.access_token"),
+		"refresh_token":  gorm.Expr("excluded.refresh_token"),
+	})
 	return r.db.WithContext(ctx).
-		Clauses(clause.OnConflict{DoNothing: true, Columns: []clause.Column{{Name: "provider"}, {Name: "subject"}}}).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "provider"}, {Name: "subject"}},
+			DoUpdates: assignments,
+		}).
 		Create(&ai).Error
+}
+
+func (r *authRepo) UpdateIdentityTokens(ctx context.Context, id uint, accessToken, refreshToken string) error {
+	updates := make(map[string]interface{})
+	if accessToken != "" {
+		updates["access_token"] = accessToken
+	}
+	if refreshToken != "" {
+		updates["refresh_token"] = refreshToken
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).
+		Model(&AuthIdentity{}).
+		Where("id = ?", id).
+		Updates(updates).Error
 }
 
 func (r *authRepo) EnsurePasswordCredential(ctx context.Context, userID uint, hashed string) error {
