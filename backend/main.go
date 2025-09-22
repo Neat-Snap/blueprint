@@ -14,6 +14,7 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
 	"github.com/Neat-Snap/blueprint-backend/utils/email"
+	"github.com/workos/workos-go/v4/pkg/usermanagement"
 )
 
 func main() {
@@ -33,15 +34,17 @@ func main() {
 	connectionObject := db.NewConnection(dbConn)
 
 	emailClient := email.NewEmailClient(cfg, *log)
+	userManagementClient := usermanagement.NewClient(cfg.WORKOS_API_KEY)
 
 	router := api.NewRouter(api.RouterConfig{
-		Env:         cfg.Env,
-		DB:          dbConn,
-		Logger:      *log,
-		Connection:  connectionObject,
-		EmailClient: emailClient,
-		RedisSecret: cfg.REDIS_SECRET,
-		Config:      cfg,
+		Env:                  cfg.Env,
+		DB:                   dbConn,
+		Logger:               *log,
+		Connection:           connectionObject,
+		EmailClient:          emailClient,
+		RedisSecret:          cfg.REDIS_SECRET,
+		Config:               cfg,
+		UserManagementClient: userManagementClient,
 	})
 
 	server := api.NewServer(cfg, log, router)

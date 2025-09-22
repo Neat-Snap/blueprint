@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"slices"
-	"time"
 
 	"strings"
 
@@ -14,18 +13,21 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/middleware"
 	"github.com/Neat-Snap/blueprint-backend/utils"
 	"github.com/Neat-Snap/blueprint-backend/utils/email"
+	"github.com/workos/workos-go/v4/pkg/usermanagement"
+	"github.com/workos/workos-go/v4/pkg/workos_errors"
 )
 
 type UsersAPI struct {
-	logger      logger.MultiLogger
-	Connection  *db.Connection
-	EmailClient *email.EmailClient
-	RedisSecret string
-	Config      config.Config
+	logger         logger.MultiLogger
+	Connection     *db.Connection
+	EmailClient    *email.EmailClient
+	RedisSecret    string
+	Config         config.Config
+	UserManagement *usermanagement.Client
 }
 
-func NewUsersAPI(logger logger.MultiLogger, connection *db.Connection, emailClient *email.EmailClient, redisSecret string, config config.Config) *UsersAPI {
-	return &UsersAPI{logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret, Config: config}
+func NewUsersAPI(logger logger.MultiLogger, connection *db.Connection, emailClient *email.EmailClient, redisSecret string, config config.Config, umClient *usermanagement.Client) *UsersAPI {
+	return &UsersAPI{logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret, Config: config, UserManagement: umClient}
 }
 
 // PATCH /account/profile
@@ -79,32 +81,64 @@ func (h *UsersAPI) ChangePasswordEndpoint(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	pc, err := h.Connection.Auth.FindPasswordCredential(r.Context(), userObj.ID)
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to find password credential", http.StatusInternalServerError)
+	if userObj.Email == nil || *userObj.Email == "" {
+		utils.WriteError(w, h.logger, errors.New("email missing"), "email missing", http.StatusBadRequest)
+		return
+	}
+	if userObj.WorkOSUserID == nil || *userObj.WorkOSUserID == "" {
+		utils.WriteError(w, h.logger, utils.ErrOAuthOnlyAccount, "oauth only account", http.StatusUnauthorized)
 		return
 	}
 
-	valid, err := utils.ComparePassword(req.CurrentPassword, pc.PasswordHash)
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to compare password", http.StatusInternalServerError)
+	policy := utils.PolicyFromConfig(h.Config)
+	if err := utils.ValidatePassword(req.NewPassword, policy); err != nil {
+		utils.WriteError(w, h.logger, err, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if !valid {
-		utils.WriteError(w, h.logger, errors.New("invalid password"), "invalid password", http.StatusUnauthorized)
+	_, err = h.UserManagement.AuthenticateWithPassword(r.Context(), usermanagement.AuthenticateWithPasswordOpts{
+		ClientID: h.Config.WORKOS_CLIENT_ID,
+		Email:    utils.NormalizeEmail(*userObj.Email),
+		Password: req.CurrentPassword,
+	})
+	if err != nil {
+		var httpErr workos_errors.HTTPError
+		if errors.As(err, &httpErr) {
+			if httpErr.Code == http.StatusUnauthorized || httpErr.Code == http.StatusBadRequest {
+				utils.WriteError(w, h.logger, errors.New("invalid password"), "invalid password", http.StatusUnauthorized)
+				return
+			}
+		}
+		utils.WriteError(w, h.logger, err, "failed to verify password", http.StatusInternalServerError)
 		return
 	}
 
-	hashedNew, err := utils.HashPassword(req.NewPassword, utils.DefaultArgon)
+	updatedUser, err := h.UserManagement.UpdateUser(r.Context(), usermanagement.UpdateUserOpts{
+		User:     *userObj.WorkOSUserID,
+		Password: req.NewPassword,
+	})
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to hash password", http.StatusInternalServerError)
+		var httpErr workos_errors.HTTPError
+		if errors.As(err, &httpErr) {
+			if httpErr.Code == http.StatusBadRequest {
+				utils.WriteError(w, h.logger, err, httpErr.Message, http.StatusBadRequest)
+				return
+			}
+		}
+		utils.WriteError(w, h.logger, err, "failed to update password", http.StatusInternalServerError)
 		return
 	}
 
-	err = h.Connection.Auth.EnsurePasswordCredential(r.Context(), userObj.ID, hashedNew)
+	err = h.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
+		user, err := tx.Users.ByID(r.Context(), userObj.ID)
+		if err != nil {
+			return err
+		}
+		applyWorkOSUser(user, updatedUser)
+		return tx.Users.Update(r.Context(), user)
+	})
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to ensure password credential", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to update password", http.StatusInternalServerError)
 		return
 	}
 
@@ -140,23 +174,49 @@ func (h *UsersAPI) ChangeEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	userObj.Email = &newEmail
-	userObj.EmailVerifiedAt = nil
-
-	err = h.Connection.Auth.DeleteAuthIdentity(r.Context(), userObj.ID)
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to delete auth identity", http.StatusInternalServerError)
+	if userObj.WorkOSUserID == nil || *userObj.WorkOSUserID == "" {
+		utils.WriteError(w, h.logger, utils.ErrOAuthOnlyAccount, "oauth only account", http.StatusUnauthorized)
 		return
 	}
 
-	err = h.Connection.Users.Update(r.Context(), userObj)
+	updatedUser, err := h.UserManagement.UpdateUser(r.Context(), usermanagement.UpdateUserOpts{
+		User:          *userObj.WorkOSUserID,
+		Email:         newEmail,
+		EmailVerified: false,
+	})
+	if err != nil {
+		var httpErr workos_errors.HTTPError
+		if errors.As(err, &httpErr) {
+			if httpErr.Code == http.StatusConflict {
+				utils.WriteError(w, h.logger, err, "Email already in use", http.StatusConflict)
+				return
+			}
+			if httpErr.Code == http.StatusBadRequest {
+				utils.WriteError(w, h.logger, err, httpErr.Message, http.StatusBadRequest)
+				return
+			}
+		}
+		utils.WriteError(w, h.logger, err, "failed to update user", http.StatusInternalServerError)
+		return
+	}
+
+	err = h.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
+		user, err := tx.Users.ByID(r.Context(), userObj.ID)
+		if err != nil {
+			return err
+		}
+		applyWorkOSUser(user, updatedUser)
+		if err := tx.Users.Update(r.Context(), user); err != nil {
+			return err
+		}
+		return tx.Auth.DeleteAuthIdentity(r.Context(), user.ID)
+	})
 	if err != nil {
 		utils.WriteError(w, h.logger, err, "failed to update user", http.StatusInternalServerError)
 		return
 	}
 
-	id, err := h.EmailClient.SendConfirmationEmail(*userObj.Email, "Updating your email", 60)
-	if err != nil {
+	if _, err := h.UserManagement.SendVerificationEmail(r.Context(), usermanagement.SendVerificationEmailOpts{User: *userObj.WorkOSUserID}); err != nil {
 		utils.WriteError(w, h.logger, err, "failed to send confirmation email", http.StatusInternalServerError)
 		return
 	}
@@ -164,7 +224,7 @@ func (h *UsersAPI) ChangeEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 	resp := struct {
 		ID string `json:"confirmation_id"`
 	}{
-		ID: id,
+		ID: *userObj.WorkOSUserID,
 	}
 
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
@@ -179,38 +239,42 @@ func (h *UsersAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	verifiedEmail, err := h.EmailClient.R.Verify(r.Context(), []byte(h.RedisSecret), email.VerifyPurpose, req.ConfirmationID, req.Code)
+	resp, err := h.UserManagement.VerifyEmail(r.Context(), usermanagement.VerifyEmailOpts{User: req.ConfirmationID, Code: req.Code})
 	if err != nil {
-		switch {
-		case errors.Is(err, email.ErrNotFound), errors.Is(err, email.ErrExpired):
-			utils.WriteError(w, h.logger, err, "Invalid or expired code", http.StatusBadRequest)
-		case errors.Is(err, email.ErrConsumed):
-			utils.WriteError(w, h.logger, err, "Code already used", http.StatusBadRequest)
-		case errors.Is(err, email.ErrMismatch):
-			utils.WriteError(w, h.logger, err, "Invalid code", http.StatusBadRequest)
-		case errors.Is(err, email.ErrTooMany):
-			utils.WriteError(w, h.logger, err, "Too many attempts, try again later", http.StatusTooManyRequests)
-		default:
-			utils.WriteError(w, h.logger, err, "Failed to verify email", http.StatusInternalServerError)
+		var httpErr workos_errors.HTTPError
+		if errors.As(err, &httpErr) {
+			switch httpErr.Code {
+			case http.StatusBadRequest, http.StatusUnauthorized:
+				utils.WriteError(w, h.logger, err, "Invalid or expired code", http.StatusBadRequest)
+				return
+			case http.StatusTooManyRequests:
+				utils.WriteError(w, h.logger, err, "Too many attempts, try again later", http.StatusTooManyRequests)
+				return
+			}
 		}
-		return
-	}
-
-	err = h.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
-		u, err := tx.Users.ByEmail(r.Context(), verifiedEmail)
-		if err != nil {
-			return err
-		}
-		now := time.Now()
-		u.EmailVerifiedAt = &now
-		return tx.Users.Update(r.Context(), u)
-	})
-	if err != nil {
 		utils.WriteError(w, h.logger, err, "Failed to verify email", http.StatusInternalServerError)
 		return
 	}
 
-	token, err := utils.GenerateJWT([]byte(h.Config.JWT_SECRET), verifiedEmail, h.Config.JWT_ISSUER, h.Config.JWT_AUDIENCE)
+	err = h.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
+		u, err := tx.Users.ByWorkOSID(r.Context(), resp.User.ID)
+		if err != nil {
+			return err
+		}
+		applyWorkOSUser(u, resp.User)
+		return tx.Users.Update(r.Context(), u)
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.WriteError(w, h.logger, err, "User not found", http.StatusNotFound)
+			return
+		}
+		utils.WriteError(w, h.logger, err, "Failed to verify email", http.StatusInternalServerError)
+		return
+	}
+
+	email := utils.NormalizeEmail(resp.User.Email)
+	token, err := utils.GenerateJWT([]byte(h.Config.JWT_SECRET), email, h.Config.JWT_ISSUER, h.Config.JWT_AUDIENCE)
 	if err != nil {
 		utils.WriteError(w, h.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
 		return

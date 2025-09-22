@@ -47,6 +47,7 @@ type UsersRepo interface {
 	Create(ctx context.Context, u *User) error
 	ByID(ctx context.Context, id uint) (*User, error)
 	ByEmail(ctx context.Context, email string) (*User, error)
+	ByWorkOSID(ctx context.Context, workosID string) (*User, error)
 	Update(ctx context.Context, u *User) error
 	SoftDelete(ctx context.Context, id uint) error
 }

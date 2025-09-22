@@ -19,19 +19,22 @@ import (
 	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/google"
+	"github.com/workos/workos-go/v4/pkg/usermanagement"
+	"github.com/workos/workos-go/v4/pkg/workos_errors"
 	"gorm.io/gorm"
 )
 
 type AuthAPI struct {
-	DB            *gorm.DB
-	logger        logger.MultiLogger
-	Connection    *db.Connection
-	EmailClient   *email.EmailClient
-	RedisSecret   string
-	CookieStore   *sessions.CookieStore
-	Environment   string
-	SessionSecret string
-	Config        config.Config
+	DB             *gorm.DB
+	logger         logger.MultiLogger
+	Connection     *db.Connection
+	EmailClient    *email.EmailClient
+	RedisSecret    string
+	CookieStore    *sessions.CookieStore
+	Environment    string
+	SessionSecret  string
+	Config         config.Config
+	UserManagement *usermanagement.Client
 }
 
 // -----------------------------------
@@ -136,7 +139,7 @@ func returnDefaultPositiveResponse(w http.ResponseWriter, log logger.MultiLogger
 // 	}
 // }
 
-func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connection, emailClient *email.EmailClient, redisSecret string, environment string, sessionSecret string, config config.Config) *AuthAPI {
+func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connection, emailClient *email.EmailClient, redisSecret string, environment string, sessionSecret string, config config.Config, umClient *usermanagement.Client) *AuthAPI {
 	gob.Register(SessionUser{})
 	logger.Info("app url from config is", "app_url", config.BACKEND_PUBLIC_URL)
 	cookieStore := sessions.NewCookieStore([]byte(sessionSecret))
@@ -164,7 +167,7 @@ func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connectio
 		),
 	)
 
-	return &AuthAPI{DB: db, logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret, CookieStore: cookieStore, Environment: environment, SessionSecret: sessionSecret, Config: config}
+	return &AuthAPI{DB: db, logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret, CookieStore: cookieStore, Environment: environment, SessionSecret: sessionSecret, Config: config, UserManagement: umClient}
 }
 
 // POST /auth/register
@@ -185,28 +188,68 @@ func (a *AuthAPI) RegisterEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = utils.SignUpEmailPassword(r.Context(), a.Connection, email, u.Password, "")
+	normalized := utils.NormalizeEmail(email)
+	existing, err := a.Connection.Users.ByEmail(r.Context(), normalized)
+	if err == nil {
+		if existing.WorkOSUserID == nil || *existing.WorkOSUserID == "" {
+			utils.WriteError(w, a.logger, utils.ErrOAuthOnlyAccount, "This email is registered via Google. Please continue with Google.", http.StatusConflict)
+			return
+		}
+		utils.WriteError(w, a.logger, utils.ErrEmailTaken, "Email already in use", http.StatusConflict)
+		return
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		utils.WriteError(w, a.logger, err, "Could not register", http.StatusInternalServerError)
+		return
+	}
+
+	workosUser, err := a.UserManagement.CreateUser(r.Context(), usermanagement.CreateUserOpts{
+		Email:    normalized,
+		Password: u.Password,
+	})
+	if err != nil {
+		var httpErr workos_errors.HTTPError
+		if errors.As(err, &httpErr) {
+			switch httpErr.Code {
+			case http.StatusConflict:
+				utils.WriteError(w, a.logger, utils.ErrEmailTaken, "Email already in use", http.StatusConflict)
+				return
+			case http.StatusBadRequest:
+				utils.WriteError(w, a.logger, err, httpErr.Message, http.StatusBadRequest)
+				return
+			}
+		}
+		utils.WriteError(w, a.logger, err, "Could not register", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := a.UserManagement.SendVerificationEmail(r.Context(), usermanagement.SendVerificationEmailOpts{User: workosUser.ID}); err != nil {
+		utils.WriteError(w, a.logger, err, "Failed to send confirmation email", http.StatusInternalServerError)
+		return
+	}
+
+	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
+		user := &db.User{}
+		applyWorkOSUser(user, workosUser)
+		if err := tx.Users.Create(r.Context(), user); err != nil {
+			if utils.IsUniqueViolation(err, "uniq_users_email") {
+				return utils.ErrEmailTaken
+			}
+			return err
+		}
+		return tx.Preferences.Create(r.Context(), user.ID)
+	})
 	if err != nil {
 		if errors.Is(err, utils.ErrEmailTaken) {
 			utils.WriteError(w, a.logger, err, "Email already in use", http.StatusConflict)
-			return
-		}
-		if errors.Is(err, utils.ErrOAuthOnlyAccount) {
-			utils.WriteError(w, a.logger, err, "This email is registered via Google. Please continue with Google.", http.StatusConflict)
 			return
 		}
 		utils.WriteError(w, a.logger, err, "Could not register", http.StatusInternalServerError)
 		return
 	}
 
-	id, err := a.EmailClient.SendConfirmationEmail(email, "Confirm your email", 60)
-	if err != nil {
-		utils.WriteError(w, a.logger, err, "Failed to send confirmation email", http.StatusInternalServerError)
-		return
-	}
-
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(SignUpWithConfirmationIDResponse{Message: "User registered successfully", Success: true, ConfirmationID: id}); err != nil {
+	if err := json.NewEncoder(w).Encode(SignUpWithConfirmationIDResponse{Message: "User registered successfully", Success: true, ConfirmationID: workosUser.ID}); err != nil {
 		a.logger.Warn("failed to encode response", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -220,34 +263,36 @@ func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifiedEmail, err := a.EmailClient.R.Verify(r.Context(), []byte(a.RedisSecret), email.VerifyPurpose, reqData.ConfirmationID, reqData.Code)
+	resp, err := a.UserManagement.VerifyEmail(r.Context(), usermanagement.VerifyEmailOpts{User: reqData.ConfirmationID, Code: reqData.Code})
 	if err != nil {
-		switch {
-		case errors.Is(err, email.ErrNotFound), errors.Is(err, email.ErrExpired):
-			utils.WriteError(w, a.logger, err, "Invalid or expired code", http.StatusBadRequest)
-		case errors.Is(err, email.ErrConsumed):
-			utils.WriteError(w, a.logger, err, "Code already used", http.StatusBadRequest)
-		case errors.Is(err, email.ErrMismatch):
-			utils.WriteError(w, a.logger, err, "Invalid code", http.StatusBadRequest)
-		case errors.Is(err, email.ErrTooMany):
-			utils.WriteError(w, a.logger, err, "Too many attempts, try again later", http.StatusTooManyRequests)
-		default:
-			utils.WriteError(w, a.logger, err, "Failed to verify email", http.StatusInternalServerError)
+		var httpErr workos_errors.HTTPError
+		if errors.As(err, &httpErr) {
+			switch httpErr.Code {
+			case http.StatusBadRequest, http.StatusUnauthorized:
+				utils.WriteError(w, a.logger, err, "Invalid or expired code", http.StatusBadRequest)
+				return
+			case http.StatusTooManyRequests:
+				utils.WriteError(w, a.logger, err, "Too many attempts, try again later", http.StatusTooManyRequests)
+				return
+			}
 		}
+		utils.WriteError(w, a.logger, err, "Failed to verify email", http.StatusInternalServerError)
 		return
 	}
 
 	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
-		u, err := tx.Users.ByEmail(r.Context(), verifiedEmail)
+		u, err := tx.Users.ByWorkOSID(r.Context(), resp.User.ID)
 		if err != nil {
 			return err
 		}
-		now := time.Now()
-		u.EmailVerifiedAt = &now
+		wasVerified := u.EmailVerifiedAt != nil
+		applyWorkOSUser(u, resp.User)
 		if err := tx.Users.Update(r.Context(), u); err != nil {
 			return err
 		}
-
+		if wasVerified || u.EmailVerifiedAt == nil {
+			return nil
+		}
 		existing, err := tx.Teams.ListForUser(r.Context(), u.ID)
 		if err != nil {
 			return err
@@ -271,11 +316,16 @@ func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.WriteError(w, a.logger, err, "User not found", http.StatusNotFound)
+			return
+		}
 		utils.WriteError(w, a.logger, err, "Failed to verify email", http.StatusInternalServerError)
 		return
 	}
 
-	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), verifiedEmail, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
+	email := utils.NormalizeEmail(resp.User.Email)
+	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), email, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
 		return
@@ -303,46 +353,72 @@ func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var tokenOnSuccess string
-	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
-		user, err := tx.Users.ByEmail(r.Context(), email)
-		if err != nil {
-			return err
-		}
-
-		// Guard against users who registered via OAuth and do not have a password credential
-		if user.PasswordCredential == nil || user.PasswordCredential.PasswordDisabled {
-			return utils.ErrOAuthOnlyAccount
-		}
-
-		ok, err := utils.ComparePassword(u.Password, user.PasswordCredential.PasswordHash)
-		if err != nil {
-			return err
-		}
-
-		if !ok {
-			return errors.New("invalid password")
-		}
-
-		token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), email, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
-		if err != nil {
-			return err
-		}
-
-		tokenOnSuccess = token
-		return nil
-	})
-
-	if err != nil {
-		if errors.Is(err, utils.ErrOAuthOnlyAccount) {
-			utils.WriteError(w, a.logger, err, "This account uses Google sign-in. Please continue with Google.", http.StatusConflict)
+	normalized := utils.NormalizeEmail(email)
+	existing, err := a.Connection.Users.ByEmail(r.Context(), normalized)
+	if err == nil {
+		if existing.WorkOSUserID == nil || *existing.WorkOSUserID == "" {
+			utils.WriteError(w, a.logger, utils.ErrOAuthOnlyAccount, "This account uses Google sign-in. Please continue with Google.", http.StatusConflict)
 			return
 		}
-		utils.WriteError(w, a.logger, err, "Invalid email or password", http.StatusUnauthorized)
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		utils.WriteError(w, a.logger, err, "Authentication failed", http.StatusInternalServerError)
 		return
 	}
 
-	returnCookieToken(a.Config.APP_URL, w, tokenOnSuccess, a.Config)
+	authResp, err := a.UserManagement.AuthenticateWithPassword(r.Context(), usermanagement.AuthenticateWithPasswordOpts{
+		ClientID: a.Config.WORKOS_CLIENT_ID,
+		Email:    normalized,
+		Password: u.Password,
+	})
+	if err != nil {
+		var emailVerificationErr *workos_errors.EmailVerificationRequiredError
+		if errors.As(err, &emailVerificationErr) {
+			utils.WriteError(w, a.logger, err, "Email verification required", http.StatusForbidden)
+			return
+		}
+		var httpErr workos_errors.HTTPError
+		if errors.As(err, &httpErr) {
+			switch httpErr.Code {
+			case http.StatusUnauthorized, http.StatusBadRequest, http.StatusNotFound:
+				utils.WriteError(w, a.logger, err, "Invalid email or password", http.StatusUnauthorized)
+				return
+			case http.StatusTooManyRequests:
+				utils.WriteError(w, a.logger, err, "Too many attempts, try again later", http.StatusTooManyRequests)
+				return
+			}
+		}
+		utils.WriteError(w, a.logger, err, "Authentication failed", http.StatusInternalServerError)
+		return
+	}
+
+	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
+		user, err := tx.Users.ByEmail(r.Context(), normalized)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				user = &db.User{}
+				applyWorkOSUser(user, authResp.User)
+				if err := tx.Users.Create(r.Context(), user); err != nil {
+					return err
+				}
+				return tx.Preferences.Create(r.Context(), user.ID)
+			}
+			return err
+		}
+		applyWorkOSUser(user, authResp.User)
+		return tx.Users.Update(r.Context(), user)
+	})
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "Authentication failed", http.StatusInternalServerError)
+		return
+	}
+
+	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), normalized, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
+		return
+	}
+
+	returnCookieToken(a.Config.APP_URL, w, token, a.Config)
 
 	returnDefaultPositiveResponse(w, a.logger)
 }
@@ -556,14 +632,28 @@ func (a *AuthAPI) ResendEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	id, err := a.EmailClient.SendConfirmationEmail(mail, "Confirm your email", 60)
+
+	user, err := a.Connection.Users.ByEmail(r.Context(), mail)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.WriteError(w, a.logger, err, "User not found", http.StatusNotFound)
+			return
+		}
+		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	if user.WorkOSUserID == nil || *user.WorkOSUserID == "" {
+		utils.WriteError(w, a.logger, utils.ErrOAuthOnlyAccount, "This account uses Google sign-in. Please continue with Google.", http.StatusConflict)
+		return
+	}
+
+	if _, err := a.UserManagement.SendVerificationEmail(r.Context(), usermanagement.SendVerificationEmailOpts{User: *user.WorkOSUserID}); err != nil {
 		utils.WriteError(w, a.logger, err, "error sending confirmation email", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(SignUpWithConfirmationIDResponse{Message: "User registered successfully", Success: true, ConfirmationID: id}); err != nil {
+	if err := json.NewEncoder(w).Encode(SignUpWithConfirmationIDResponse{Message: "User registered successfully", Success: true, ConfirmationID: *user.WorkOSUserID}); err != nil {
 		a.logger.Warn("failed to encode response", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -589,11 +679,15 @@ func (a *AuthAPI) ResetPasswordEndpoint(w http.ResponseWriter, r *http.Request) 
 	mail = strings.ToLower(strings.TrimSpace(mail))
 	u, err := a.Connection.Users.ByEmail(r.Context(), mail)
 	if err != nil {
-		utils.WriteError(w, a.logger, err, "user not found", http.StatusNotFound)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.WriteError(w, a.logger, err, "user not found", http.StatusNotFound)
+			return
+		}
+		utils.WriteError(w, a.logger, err, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	if u.PasswordCredential == nil || u.PasswordCredential.PasswordDisabled {
+	if u.WorkOSUserID == nil || *u.WorkOSUserID == "" {
 		utils.WriteError(w, a.logger, utils.ErrOAuthOnlyAccount, "oauth only account", http.StatusUnauthorized)
 		return
 	}
@@ -679,13 +773,51 @@ func (a *AuthAPI) ResetPasswordConfirmEndpoint(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	err = utils.ResetPassword(r.Context(), a.Connection, mail_address, requestStruct.Password)
+	u, err := a.Connection.Users.ByEmail(r.Context(), mail_address)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.WriteError(w, a.logger, err, "User not found", http.StatusNotFound)
+			return
+		}
+		utils.WriteError(w, a.logger, err, "Failed to update password", http.StatusInternalServerError)
+		return
+	}
+	if u.WorkOSUserID == nil || *u.WorkOSUserID == "" {
+		utils.WriteError(w, a.logger, utils.ErrOAuthOnlyAccount, "oauth only account", http.StatusUnauthorized)
+		return
+	}
+
+	updatedUser, err := a.UserManagement.UpdateUser(r.Context(), usermanagement.UpdateUserOpts{
+		User:     *u.WorkOSUserID,
+		Password: requestStruct.Password,
+	})
+	if err != nil {
+		var httpErr workos_errors.HTTPError
+		if errors.As(err, &httpErr) {
+			if httpErr.Code == http.StatusBadRequest {
+				utils.WriteError(w, a.logger, err, httpErr.Message, http.StatusBadRequest)
+				return
+			}
+		}
+		utils.WriteError(w, a.logger, err, "Failed to update password", http.StatusInternalServerError)
+		return
+	}
+
+	err = a.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
+		user, err := tx.Users.ByEmail(r.Context(), mail_address)
+		if err != nil {
+			return err
+		}
+		applyWorkOSUser(user, updatedUser)
+		return tx.Users.Update(r.Context(), user)
+	})
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to update password", http.StatusInternalServerError)
 		return
 	}
 
-	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), mail_address, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
+	email := utils.NormalizeEmail(updatedUser.Email)
+	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), email, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to generate token", http.StatusInternalServerError)
 		return

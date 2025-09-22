@@ -49,6 +49,9 @@ type Config struct {
 	JWT_ISSUER   string
 	JWT_AUDIENCE string
 
+	WORKOS_API_KEY   string
+	WORKOS_CLIENT_ID string
+
 	PASSWORD_MIN_LENGTH     int
 	PASSWORD_MAX_LENGTH     int
 	PASSWORD_REQUIRE_UPPER  bool
@@ -146,6 +149,9 @@ func Load() Config {
 		JWT_SECRET:   getenvStrict("JWT_SECRET"),
 		JWT_ISSUER:   getenv("JWT_ISSUER", "statgrad"),
 		JWT_AUDIENCE: getenv("JWT_AUDIENCE", "statgrad-web"),
+
+		WORKOS_API_KEY:   getenvStrict("WORKOS_API_KEY"),
+		WORKOS_CLIENT_ID: getenvStrict("WORKOS_CLIENT_ID"),
 
 		PASSWORD_MIN_LENGTH:     8,
 		PASSWORD_MAX_LENGTH:     128,

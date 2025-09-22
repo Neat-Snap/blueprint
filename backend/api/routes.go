@@ -12,17 +12,19 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
+	"github.com/workos/workos-go/v4/pkg/usermanagement"
 	"gorm.io/gorm"
 )
 
 type RouterConfig struct {
-	Env         string
-	DB          *gorm.DB
-	Logger      logger.MultiLogger
-	Connection  *db.Connection
-	EmailClient *email.EmailClient
-	RedisSecret string
-	Config      config.Config
+	Env                  string
+	DB                   *gorm.DB
+	Logger               logger.MultiLogger
+	Connection           *db.Connection
+	EmailClient          *email.EmailClient
+	RedisSecret          string
+	Config               config.Config
+	UserManagementClient *usermanagement.Client
 }
 
 func NewRouter(c RouterConfig) chi.Router {
@@ -50,7 +52,7 @@ func NewRouter(c RouterConfig) chi.Router {
 	feedbackAPI := handlers.NewFeedbackAPI(c.Logger, c.Connection, c.EmailClient, c.Config)
 	r.With(mw.Confirmation(c.Config, c.EmailClient.R)).Post("/feedback", feedbackAPI.SubmitEndpoint)
 
-	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Env, c.Config.SESSION_SECRET, c.Config)
+	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Env, c.Config.SESSION_SECRET, c.Config, c.UserManagementClient)
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/signup", authAPI.RegisterEndpoint)
 		r.Post("/confirm-email", authAPI.ConfirmEmailEndpoint)
@@ -89,7 +91,7 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.Post("/invitations/accept", teamsAPI.AcceptInvitationEndpoint)
 	})
 
-	usersAPI := handlers.NewUsersAPI(c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Config)
+	usersAPI := handlers.NewUsersAPI(c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Config, c.UserManagementClient)
 	r.Route("/account", func(r chi.Router) {
 		r.Use(mw.Confirmation(c.Config, c.EmailClient.R))
 		r.Patch("/me", authAPI.MeEndpoint)

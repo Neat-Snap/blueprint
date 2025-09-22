@@ -34,6 +34,18 @@ func (r *usersRepo) ByEmail(ctx context.Context, email string) (*User, error) {
 	return &u, err
 }
 
+func (r *usersRepo) ByWorkOSID(ctx context.Context, workosID string) (*User, error) {
+	if workosID == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var u User
+	err := r.db.WithContext(ctx).
+		Preload("PasswordCredential").
+		Where("work_os_user_id = ?", workosID).
+		First(&u).Error
+	return &u, err
+}
+
 func (r *usersRepo) Update(ctx context.Context, u *User) error {
 	return r.db.WithContext(ctx).Save(u).Error
 }

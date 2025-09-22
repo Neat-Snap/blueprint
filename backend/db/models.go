@@ -12,8 +12,10 @@ type User struct {
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 
-	Email           *string `gorm:"uniqueIndex:uniq_users_email,where:deleted_at IS NULL"`
-	EmailVerifiedAt *time.Time
+	Email               *string `gorm:"uniqueIndex:uniq_users_email,where:deleted_at IS NULL"`
+	EmailVerifiedAt     *time.Time
+	WorkOSUserID        *string `gorm:"type:varchar(191);uniqueIndex:uniq_users_workos_user_id,where:deleted_at IS NULL"`
+	WorkOSEmailVerified bool
 
 	Name      *string
 	AvatarURL *string
