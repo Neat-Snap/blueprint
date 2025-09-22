@@ -5,10 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/Neat-Snap/blueprint-backend/config"
 	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
-	"github.com/Neat-Snap/blueprint-backend/utils"
+	"github.com/Neat-Snap/blueprint-backend/workos"
+	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
@@ -17,7 +20,11 @@ type contextKey string
 const (
 	UserEmailContextKey  contextKey = "userEmail"
 	UserObjectContextKey contextKey = "userObject"
+	WorkOSUserContextKey contextKey = "workosUser"
+	defaultCookieName               = "workos_session"
 )
+
+const workOSProvider = "workos"
 
 type MiddlewareSkipper func(*http.Request) bool
 
@@ -29,70 +36,178 @@ func DefaultSkipper(r *http.Request) bool {
 	path := r.URL.Path
 	switch {
 	case path == "/health",
-		strings.HasPrefix(path, "/auth/login"),
-		strings.HasPrefix(path, "/auth/signup"),
-		strings.HasPrefix(path, "/auth/confirm-email"),
-
-		strings.HasPrefix(path, "/auth/password/reset"),
-		strings.HasPrefix(path, "/auth/password/confirm"),
-
-		strings.HasPrefix(path, "/auth/google"),
-		strings.HasPrefix(path, "/auth/github"),
-		strings.HasPrefix(path, "/auth/resend-email"),
-		strings.HasPrefix(path, "/auth/azuread"):
+		strings.HasPrefix(path, "/auth/workos/login"),
+		strings.HasPrefix(path, "/auth/workos/callback"):
 		return true
 	}
 	return false
 }
 
-func AuthMiddlewareBuilder(secret string, issuer string, audience string, logger logger.MultiLogger, conn *db.Connection, skipFunc MiddlewareSkipper) func(http.Handler) http.Handler {
+// AuthMiddlewareConfig configures the WorkOS authentication middleware.
+type AuthMiddlewareConfig struct {
+	Logger     logger.MultiLogger
+	Connection *db.Connection
+	Validator  *workos.Validator
+
+	Skipper MiddlewareSkipper
+
+	CookieName     string
+	CookieSecure   bool
+	CookieSameSite http.SameSite
+}
+
+// AuthMiddlewareBuilder constructs a middleware that validates WorkOS sessions and
+// loads the corresponding local user from the database.
+func AuthMiddlewareBuilder(cfg AuthMiddlewareConfig) func(http.Handler) http.Handler {
+	cookieName := cfg.CookieName
+	if cookieName == "" {
+		cookieName = defaultCookieName
+	}
+
+	sameSite := cfg.CookieSameSite
+	if sameSite == 0 {
+		sameSite = http.SameSiteLaxMode
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			logger.Debug("auth: processing auth header with middleware")
-			if skipFunc != nil && skipFunc(r) {
-				logger.Debug("auth: skipping auth middleware")
+			if cfg.Skipper != nil && cfg.Skipper(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			var token string
-			if c, err := r.Cookie("token"); err == nil && c != nil && c.Value != "" {
-				token = c.Value
-			} else {
-				authz := r.Header.Get("Authorization")
-				parts := strings.SplitN(authz, " ", 2)
-				if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-					token = parts[1]
-				}
-			}
-			if token == "" {
+			if cfg.Validator == nil || cfg.Connection == nil {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 
-			email, err := utils.DecodeJWT([]byte(secret), token, issuer, audience)
-			if err != nil {
-				logger.Debug("auth: error during jwt decoding", "error", err)
+			cookie, err := r.Cookie(cookieName)
+			if err != nil || cookie == nil || cookie.Value == "" {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 
-			dbUser, err := conn.Users.ByEmail(r.Context(), email)
+			result, parseErr := cfg.Validator.ParseAccessToken(r.Context(), cookie.Value)
+			if parseErr != nil && !errors.Is(parseErr, jwt.ErrTokenExpired) {
+				cfg.Logger.Debug("auth: failed to parse WorkOS access token", "error", parseErr)
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if result == nil {
+				cfg.Logger.Debug("auth: validator returned no result")
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			authIdentity, err := cfg.Connection.Auth.FindAuthIdentity(r.Context(), workOSProvider, result.UserID)
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					logger.Debug("auth: record for email was not found in the database during middleware check", "email", email)
+					cfg.Logger.Debug("auth: workos identity not found", "user_id", result.UserID)
 				} else {
-					logger.Debug("auth: error occured in the middleware", "error", err)
+					cfg.Logger.Debug("auth: failed to load workos identity", "error", err)
 				}
-				logger.Debug("auth: error occured in the middleware")
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), UserEmailContextKey, email)
+			dbUser := authIdentity.User
+			if dbUser == nil {
+				dbUser, err = cfg.Connection.Auth.FindUserByAuthIdentity(r.Context(), authIdentity)
+				if err != nil {
+					cfg.Logger.Debug("auth: failed to load user for identity", "error", err)
+					http.Error(w, "unauthorized", http.StatusUnauthorized)
+					return
+				}
+			}
+
+			if errors.Is(parseErr, jwt.ErrTokenExpired) {
+				if authIdentity.RefreshToken == nil || *authIdentity.RefreshToken == "" {
+					cfg.Logger.Debug("auth: missing refresh token for expired session", "user_id", result.UserID)
+					http.Error(w, "unauthorized", http.StatusUnauthorized)
+					return
+				}
+
+				refreshed, refreshErr := cfg.Validator.Refresh(r.Context(), *authIdentity.RefreshToken)
+				if refreshErr != nil {
+					cfg.Logger.Debug("auth: failed to refresh token", "error", refreshErr)
+					http.Error(w, "unauthorized", http.StatusUnauthorized)
+					return
+				}
+
+				result = refreshed
+				if err := cfg.Connection.DBConn.WithContext(r.Context()).Model(authIdentity).Updates(map[string]interface{}{
+					"access_token":  refreshed.AccessToken,
+					"refresh_token": refreshed.RefreshToken,
+				}).Error; err != nil {
+					cfg.Logger.Warn("auth: failed to persist refreshed tokens", "error", err)
+				} else {
+					authIdentity.AccessToken = &refreshed.AccessToken
+					authIdentity.RefreshToken = &refreshed.RefreshToken
+				}
+
+				setSessionCookie(w, cookieName, refreshed.AccessToken, refreshed.ExpiresAt, cfg.CookieSecure, sameSite)
+			} else {
+				setSessionCookie(w, cookieName, result.AccessToken, result.ExpiresAt, cfg.CookieSecure, sameSite)
+			}
+
+			if shouldUpdateUser(dbUser, result) {
+				if err := cfg.Connection.Users.Update(r.Context(), dbUser); err != nil {
+					cfg.Logger.Warn("auth: failed to sync user details", "error", err)
+				}
+			}
+
+			ctx := context.WithValue(r.Context(), UserEmailContextKey, result.Email)
 			ctx = context.WithValue(ctx, UserObjectContextKey, dbUser)
+			ctx = context.WithValue(ctx, WorkOSUserContextKey, result)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func shouldUpdateUser(u *db.User, res *workos.ValidationResult) bool {
+	if u == nil || res == nil {
+		return false
+	}
+
+	updated := false
+	if res.Email != "" {
+		if u.Email == nil || *u.Email != res.Email {
+			email := res.Email
+			u.Email = &email
+			updated = true
+		}
+	}
+
+	if res.EmailVerified && u.EmailVerifiedAt == nil {
+		now := time.Now()
+		u.EmailVerifiedAt = &now
+		updated = true
+	}
+
+	return updated
+}
+
+func setSessionCookie(w http.ResponseWriter, name, value string, expiresAt time.Time, secure bool, sameSite http.SameSite) {
+	if value == "" {
+		return
+	}
+
+	maxAge := 0
+	if !expiresAt.IsZero() {
+		if delta := time.Until(expiresAt); delta > 0 {
+			maxAge = int(delta.Seconds())
+		}
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: sameSite,
+		MaxAge:   maxAge,
+		Expires:  expiresAt,
+	})
 }

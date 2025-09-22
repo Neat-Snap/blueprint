@@ -14,6 +14,8 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
 	"github.com/Neat-Snap/blueprint-backend/utils/email"
+	"github.com/Neat-Snap/blueprint-backend/workos"
+	"github.com/workos/workos-go/v4/pkg/usermanagement"
 )
 
 func main() {
@@ -34,14 +36,27 @@ func main() {
 
 	emailClient := email.NewEmailClient(cfg, *log)
 
+	workosClient := usermanagement.NewClient(cfg.WORKOS_API_KEY)
+	workosValidator, err := workos.NewValidator(workos.ValidatorConfig{
+		Client:   workosClient,
+		ClientID: cfg.WORKOS_CLIENT_ID,
+		Issuer:   cfg.WORKOS_ISSUER,
+	})
+	if err != nil {
+		log.Error("failed to configure workos validator", "error", err)
+		os.Exit(1)
+	}
+
 	router := api.NewRouter(api.RouterConfig{
-		Env:         cfg.Env,
-		DB:          dbConn,
-		Logger:      *log,
-		Connection:  connectionObject,
-		EmailClient: emailClient,
-		RedisSecret: cfg.REDIS_SECRET,
-		Config:      cfg,
+		Env:             cfg.Env,
+		DB:              dbConn,
+		Logger:          *log,
+		Connection:      connectionObject,
+		EmailClient:     emailClient,
+		RedisSecret:     cfg.REDIS_SECRET,
+		Config:          cfg,
+		WorkOSValidator: workosValidator,
+		WorkOSClient:    workosClient,
 	})
 
 	server := api.NewServer(cfg, log, router)

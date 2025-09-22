@@ -64,8 +64,6 @@ func GenerateJWT(secret []byte, email string, iss string, aud string) (string, e
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": email,
 		"iat":   now.Unix(),
-		"iss":   iss,
-		"aud":   aud,
 		"exp":   now.Add(21 * 24 * time.Hour).Unix(),
 	})
 
@@ -76,7 +74,7 @@ func GenerateJWT(secret []byte, email string, iss string, aud string) (string, e
 	return tokenString, nil
 }
 
-func DecodeJWT(secret []byte, tokenStr string, iss string, aud string) (string, error) {
+func DecodeJWT(secret []byte, tokenStr string) (string, error) {
 	claims := jwt.MapClaims{}
 	parsed, err := jwt.ParseWithClaims(tokenStr, &claims, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -103,30 +101,6 @@ func DecodeJWT(secret []byte, tokenStr string, iss string, aud string) (string, 
 				return "", fmt.Errorf("token expired")
 			}
 		}
-	}
-
-	if issVal, ok := claims["iss"].(string); !ok || issVal != iss {
-		return "", fmt.Errorf("invalid issuer")
-	}
-
-	switch audVal := claims["aud"].(type) {
-	case string:
-		if audVal != aud {
-			return "", fmt.Errorf("invalid audience")
-		}
-	case []interface{}:
-		found := false
-		for _, a := range audVal {
-			if s, ok := a.(string); ok && s == aud {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return "", fmt.Errorf("invalid audience")
-		}
-	default:
-		return "", fmt.Errorf("invalid audience")
 	}
 
 	sub, ok := claims["email"]

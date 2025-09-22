@@ -158,7 +158,7 @@ func (h *UsersAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	token, err := utils.GenerateJWT([]byte(h.Config.JWT_SECRET), verifiedEmail, h.Config.JWT_ISSUER, h.Config.JWT_AUDIENCE)
+	token, err := utils.GenerateJWT([]byte(h.Config.Session.TokenSecret), verifiedEmail)
 	if err != nil {
 		utils.WriteError(w, h.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
 		return

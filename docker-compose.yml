@@ -71,12 +71,16 @@ services:
       APP_NAME: ${APP_NAME?required}
       APP_URL: ${APP_URL?required}
 
-      # Secrets (explicit to enforce presence)
+      # Secrets and auth configuration
       SESSION_SECRET: ${SESSION_SECRET?required}
-      JWT_SECRET: ${JWT_SECRET?required}
+      AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET?required}
       RESEND_API_KEY: ${RESEND_API_KEY?required}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID?required}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET?required}
+
+      WORKOS_API_KEY: ${WORKOS_API_KEY?required}
+      WORKOS_CLIENT_ID: ${WORKOS_CLIENT_ID?required}
+      WORKOS_DEFAULT_CONNECTION: ${WORKOS_DEFAULT_CONNECTION:-}
+      WORKOS_DEFAULT_ORGANIZATION: ${WORKOS_DEFAULT_ORGANIZATION:-}
+      WORKOS_CALLBACK_URL: ${WORKOS_CALLBACK_URL?required}
 
     ports:
       - "8080:8080"

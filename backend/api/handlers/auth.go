@@ -15,7 +15,6 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/utils/email"
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
-	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/google"
@@ -24,15 +23,15 @@ import (
 )
 
 type AuthAPI struct {
-	DB            *gorm.DB
-	logger        logger.MultiLogger
-	Connection    *db.Connection
-	EmailClient   *email.EmailClient
-	RedisSecret   string
-	CookieStore   *sessions.CookieStore
-	Environment   string
-	SessionSecret string
-	Config        config.Config
+	DB          *gorm.DB
+	logger      logger.MultiLogger
+	Connection  *db.Connection
+	EmailClient *email.EmailClient
+	RedisSecret string
+	CookieStore *sessions.CookieStore
+	Session     config.SessionConfig
+	WorkOS      config.WorkOSConfig
+	Config      config.Config
 }
 
 type VerifyUserEmailRequest struct {
@@ -48,15 +47,32 @@ type SignUpWithConfirmationIDResponse struct {
 
 // -----------------------------------
 
+func sameSiteMode(mode string) http.SameSite {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "lax":
+		return http.SameSiteLaxMode
+	case "strict":
+		return http.SameSiteStrictMode
+	case "none":
+		return http.SameSiteNoneMode
+	default:
+		return http.SameSiteDefaultMode
+	}
+}
+
 // GET /auth/me
 func (a *AuthAPI) MeEndpoint(w http.ResponseWriter, r *http.Request) {
-	c, err := r.Cookie("token")
+	cookieName := a.Session.Token.Name
+	if cookieName == "" {
+		cookieName = "token"
+	}
+	c, err := r.Cookie(cookieName)
 	if err != nil || c == nil || c.Value == "" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	email, err := utils.DecodeJWT([]byte(a.Config.JWT_SECRET), c.Value, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
+	email, err := utils.DecodeJWT([]byte(a.Session.TokenSecret), c.Value)
 	if err != nil {
 		http.Error(w, "invalid token", http.StatusUnauthorized)
 		return
@@ -82,17 +98,23 @@ func returnCookieToken(origin string, w http.ResponseWriter, token string, sessi
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
-	secure := cfg.Env == "prod"
-	sameSite := http.SameSiteStrictMode
+	cookieCfg := cfg.Session.Token
+	if cookieCfg.Name == "" {
+		cookieCfg.Name = "token"
+	}
+	if cookieCfg.Path == "" {
+		cookieCfg.Path = "/"
+	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
+		Name:     cookieCfg.Name,
 		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: sameSite,
-		MaxAge:   3600 * 24 * 21,
+		Path:     cookieCfg.Path,
+		Domain:   cookieCfg.Domain,
+		HttpOnly: cookieCfg.HTTPOnly,
+		Secure:   cookieCfg.Secure,
+		SameSite: sameSiteMode(cookieCfg.SameSite),
+		MaxAge:   cookieCfg.MaxAge,
 	})
 
 	if sessionID != nil && *sessionID != "" {
@@ -127,34 +149,29 @@ func returnDefaultPositiveResponse(w http.ResponseWriter, log logger.MultiLogger
 // 	}
 // }
 
-func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connection, emailClient *email.EmailClient, redisSecret string, environment string, sessionSecret string, config config.Config) *AuthAPI {
+
+func NewAuthAPI(db *gorm.DB, logger logger.MultiLogger, connection *db.Connection, emailClient *email.EmailClient, redisSecret string, sessionCfg config.SessionConfig, workosCfg config.WorkOSConfig, config config.Config) *AuthAPI {
+	gob.Register(SessionUser{})
 	logger.Info("app url from config is", "app_url", config.BACKEND_PUBLIC_URL)
-	cookieStore := sessions.NewCookieStore([]byte(sessionSecret))
-	cookieStore.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   3600 * 8,
-		HttpOnly: true,
-		Secure:   environment == "prod",
-		SameSite: http.SameSiteLaxMode,
+	cookieStore := sessions.NewCookieStore([]byte(sessionCfg.Secret))
+	storeOptions := sessions.Options{
+		Path:     sessionCfg.Store.Path,
+		Domain:   sessionCfg.Store.Domain,
+		MaxAge:   sessionCfg.Store.MaxAge,
+		HttpOnly: sessionCfg.Store.HTTPOnly,
+		Secure:   sessionCfg.Store.Secure,
+		SameSite: sameSiteMode(sessionCfg.Store.SameSite),
 	}
+	if storeOptions.Path == "" {
+		storeOptions.Path = "/"
+	}
+	if storeOptions.MaxAge == 0 {
+		storeOptions.MaxAge = 3600 * 8
+	}
+	cookieStore.Options = &storeOptions
 	gothic.Store = cookieStore
 
-	goth.UseProviders(
-		google.New(
-			config.GOOGLE_CLIENT_ID,
-			config.GOOGLE_CLIENT_SECRET,
-			fmt.Sprintf("%s/auth/google/callback", config.BACKEND_PUBLIC_URL),
-			"openid", "email", "profile",
-		),
-		github.New(
-			config.GITHUB_CLIENT_ID,
-			config.GITHUB_CLIENT_SECRET,
-			fmt.Sprintf("%s/auth/github/callback", config.BACKEND_PUBLIC_URL),
-			"read:user",
-		),
-	)
-
-	return &AuthAPI{DB: db, logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret, CookieStore: cookieStore, Environment: environment, SessionSecret: sessionSecret, Config: config}
+	return &AuthAPI{DB: db, logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret, CookieStore: cookieStore, Session: sessionCfg, WorkOS: workosCfg, Config: config}
 }
 
 // POST /auth/register
@@ -223,7 +240,7 @@ func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := utils.GenerateJWT([]byte(a.Config.JWT_SECRET), verifiedEmail, a.Config.JWT_ISSUER, a.Config.JWT_AUDIENCE)
+	token, err := utils.GenerateJWT([]byte(a.Session.TokenSecret), verifiedEmail)
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
 		return
@@ -460,14 +477,15 @@ func (a *AuthAPI) LogoutEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
+		Name:     cookieCfg.Name,
 		Value:    "",
-		Path:     "/",
+		Path:     cookieCfg.Path,
+		Domain:   cookieCfg.Domain,
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		HttpOnly: cookieCfg.HTTPOnly,
+		Secure:   cookieCfg.Secure,
+		SameSite: sameSiteMode(cookieCfg.SameSite),
 	})
 
 	http.SetCookie(w, &http.Cookie{
