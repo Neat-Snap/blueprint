@@ -3,6 +3,7 @@ package db
 import (
 	"time"
 
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -12,14 +13,16 @@ type User struct {
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 
-	Email           *string `gorm:"uniqueIndex:uniq_users_email,where:deleted_at IS NULL"`
-	EmailVerifiedAt *time.Time
+	Email         *string `gorm:"uniqueIndex:uniq_users_email,where:deleted_at IS NULL"`
+	EmailVerified bool    `gorm:"not null;default:false"`
+
+	WorkOSUserID    *string           `gorm:"uniqueIndex:uniq_users_workos_id,where:deleted_at IS NULL"`
+	ProfileMetadata datatypes.JSONMap `gorm:"type:jsonb"`
 
 	Name      *string
 	AvatarURL *string
 
-	PasswordCredential *PasswordCredential `gorm:"constraint:OnDelete:CASCADE"`
-	AuthIdentities     []AuthIdentity      `gorm:"constraint:OnDelete:CASCADE"`
+	Sessions []UserSession `gorm:"constraint:OnDelete:CASCADE"`
 
 	Teams []Team `gorm:"many2many:user_teams;joinForeignKey:UserID;joinReferences:TeamID;constraint:OnDelete:CASCADE;"`
 }
@@ -50,18 +53,7 @@ type Notification struct {
 	ReadAt *time.Time `gorm:"index"`
 }
 
-type PasswordCredential struct {
-	ID uint `gorm:"primaryKey"`
-
-	UserID uint  `gorm:"uniqueIndex;not null"`
-	User   *User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-
-	PasswordHash      string    `gorm:"type:text;not null" json:"-"`
-	PasswordUpdatedAt time.Time `gorm:"autoUpdateTime"`
-	PasswordDisabled  bool      `gorm:"default:false"`
-}
-
-type AuthIdentity struct {
+type UserSession struct {
 	ID        uint `gorm:"primaryKey"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -69,13 +61,10 @@ type AuthIdentity struct {
 	UserID uint  `gorm:"index;not null"`
 	User   *User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 
-	Provider string `gorm:"type:varchar(32);not null;index:uniq_provider_subject,unique"`
-	Subject  string `gorm:"type:varchar(191);not null;index:uniq_provider_subject,unique"`
-
-	AccessToken  *string
-	RefreshToken *string
-
-	ProviderEmail *string
+	SessionID        string    `gorm:"type:varchar(191);uniqueIndex;not null"`
+	RefreshTokenHash string    `gorm:"type:text;not null"`
+	ExpiresAt        time.Time `gorm:"index"`
+	LastUsedAt       time.Time `gorm:"index"`
 }
 
 type Team struct {

@@ -15,14 +15,17 @@ require (
 	github.com/resend/resend-go/v2 v2.23.0
 	github.com/rs/zerolog v1.34.0
 	golang.org/x/crypto v0.35.0
+	gorm.io/datatypes v1.2.7
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.30.1
 )
 
 require (
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/gorilla/context v1.1.1 // indirect
 	github.com/gorilla/mux v1.6.2 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
@@ -39,4 +42,5 @@ require (
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
+	gorm.io/driver/mysql v1.5.6 // indirect
 )
