@@ -1,56 +1,47 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
-	"net/url"
-	"time"
 
-	"github.com/Neat-Snap/blueprint-backend/config"
-	"github.com/Neat-Snap/blueprint-backend/db"
-	mail "github.com/Neat-Snap/blueprint-backend/utils/email"
+	"github.com/Neat-Snap/blueprint-backend/logger"
+	"github.com/Neat-Snap/blueprint-backend/workos"
+	"github.com/workos/workos-go/v4/pkg/usermanagement"
 )
 
-func Confirmation(cfg config.Config, rds *mail.Redis) func(http.Handler) http.Handler {
+// ConfirmationConfig configures the email confirmation middleware.
+type ConfirmationConfig struct {
+	RequireVerifiedEmail bool
+	WorkOSClient         *usermanagement.Client
+	Logger               logger.MultiLogger
+}
+
+// Confirmation ensures that the authenticated WorkOS user has a verified email address.
+func Confirmation(cfg ConfirmationConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userObj, ok := r.Context().Value(UserObjectContextKey).(*db.User)
-			if !ok {
+			workosData, ok := r.Context().Value(WorkOSUserContextKey).(*workos.ValidationResult)
+			if !ok || workosData == nil {
 				http.Error(w, "user is not authenticated", http.StatusUnauthorized)
 				return
 			}
 
-			if userObj.EmailVerifiedAt != nil {
+			if !cfg.RequireVerifiedEmail {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			if userObj.Email == nil || *userObj.Email == "" {
-				http.Error(w, "user email missing", http.StatusForbidden)
+			if workosData.EmailVerified {
+				next.ServeHTTP(w, r)
 				return
 			}
 
-			email := *userObj.Email
-			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
-			defer cancel()
-
-			id, err := rds.GetIdByEmail(ctx, mail.VerifyPurpose, email)
-			if err != nil {
-				if err == mail.ErrNotFound {
-					var code string
-					id, code, err = rds.Create(ctx, []byte(cfg.REDIS_SECRET), mail.VerifyPurpose, email, 6, 15*time.Minute, 6)
-					_ = code
+			if cfg.WorkOSClient != nil && workosData.UserID != "" {
+				if _, err := cfg.WorkOSClient.SendVerificationEmail(r.Context(), usermanagement.SendVerificationEmailOpts{User: workosData.UserID}); err != nil {
+					cfg.Logger.Warn("confirmation: failed to send verification email", "error", err)
 				}
 			}
-			if err != nil || id == "" {
-				http.Error(w, "could not initiate verification", http.StatusInternalServerError)
-				return
-			}
 
-			v := url.Values{}
-			v.Set("cid", id)
-			v.Set("email", email)
-			http.Redirect(w, r, cfg.APP_URL+"/auth/verify?"+v.Encode(), http.StatusFound)
+			http.Error(w, "email not verified", http.StatusForbidden)
 		})
 	}
 }

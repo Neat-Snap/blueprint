@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/Neat-Snap/blueprint-backend/api/handlers"
@@ -9,20 +10,24 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/logger"
 	mw "github.com/Neat-Snap/blueprint-backend/middleware"
 	"github.com/Neat-Snap/blueprint-backend/utils/email"
+	"github.com/Neat-Snap/blueprint-backend/workos"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
+	"github.com/workos/workos-go/v4/pkg/usermanagement"
 	"gorm.io/gorm"
 )
 
 type RouterConfig struct {
-	Env         string
-	DB          *gorm.DB
-	Logger      logger.MultiLogger
-	Connection  *db.Connection
-	EmailClient *email.EmailClient
-	RedisSecret string
-	Config      config.Config
+	Env             string
+	DB              *gorm.DB
+	Logger          logger.MultiLogger
+	Connection      *db.Connection
+	EmailClient     *email.EmailClient
+	RedisSecret     string
+	Config          config.Config
+	WorkOSValidator *workos.Validator
+	WorkOSClient    *usermanagement.Client
 }
 
 func NewRouter(c RouterConfig) chi.Router {
@@ -42,13 +47,28 @@ func NewRouter(c RouterConfig) chi.Router {
 		httprate.WithKeyFuncs(httprate.KeyByIP, httprate.KeyByEndpoint),
 	))
 
-	r.Use(mw.AuthMiddlewareBuilder(c.Config.JWT_SECRET, c.Config.JWT_ISSUER, c.Config.JWT_AUDIENCE, c.Logger, c.Connection, mw.DefaultSkipper))
+	authMiddleware := mw.AuthMiddlewareBuilder(mw.AuthMiddlewareConfig{
+		Logger:         c.Logger,
+		Connection:     c.Connection,
+		Validator:      c.WorkOSValidator,
+		Skipper:        mw.DefaultSkipper,
+		CookieName:     c.Config.WORKOS_SESSION_COOKIE_NAME,
+		CookieSecure:   c.Env == "prod",
+		CookieSameSite: http.SameSiteLaxMode,
+	})
+	r.Use(authMiddleware)
+
+	confirmationMW := mw.Confirmation(mw.ConfirmationConfig{
+		RequireVerifiedEmail: c.Config.WORKOS_REQUIRE_VERIFIED_EMAIL,
+		WorkOSClient:         c.WorkOSClient,
+		Logger:               c.Logger,
+	})
 
 	api := handlers.NewTestHealthAPI(c.DB, c.Logger)
 	r.Get("/health", api.HealthHandler)
 
 	feedbackAPI := handlers.NewFeedbackAPI(c.Logger, c.Connection, c.EmailClient, c.Config)
-	r.With(mw.Confirmation(c.Config, c.EmailClient.R)).Post("/feedback", feedbackAPI.SubmitEndpoint)
+	r.With(confirmationMW).Post("/feedback", feedbackAPI.SubmitEndpoint)
 
 	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Env, c.Config.SESSION_SECRET, c.Config)
 	r.Route("/auth", func(r chi.Router) {
@@ -57,7 +77,7 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.Post("/login", authAPI.LoginEndpoint)
 		r.Get("/{provider}", authAPI.ProviderBeginAuthEndpoint)
 		r.Get("/{provider}/callback", authAPI.ProviderCallbackEndpoint)
-		r.With(mw.Confirmation(c.Config, c.EmailClient.R)).Get("/me", authAPI.MeEndpoint)
+		r.With(confirmationMW).Get("/me", authAPI.MeEndpoint)
 		r.Get("/logout", authAPI.LogoutEndpoint)
 		r.Post("/resend-email", authAPI.ResendEmailEndpoint)
 		r.Post("/password/reset", authAPI.ResetPasswordEndpoint)
@@ -66,13 +86,13 @@ func NewRouter(c RouterConfig) chi.Router {
 
 	dashboardAPI := handlers.NewDashboardAPI(c.Logger, c.Connection)
 	r.Route("/dashboard", func(r chi.Router) {
-		r.Use(mw.Confirmation(c.Config, c.EmailClient.R))
+		r.Use(confirmationMW)
 		r.Get("/overview", dashboardAPI.OverViewEndpoint)
 	})
 
 	teamsAPI := handlers.NewTeamsAPI(c.Logger, c.Connection)
 	r.Route("/teams", func(r chi.Router) {
-		r.Use(mw.Confirmation(c.Config, c.EmailClient.R))
+		r.Use(confirmationMW)
 		r.Get("/", teamsAPI.GetTeamsEndpoint)
 		r.Post("/", teamsAPI.CreateTeamEndpoint)
 		r.Get("/{id}", teamsAPI.GetTeamEndpoint)
@@ -91,7 +111,7 @@ func NewRouter(c RouterConfig) chi.Router {
 
 	usersAPI := handlers.NewUsersAPI(c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Config)
 	r.Route("/account", func(r chi.Router) {
-		r.Use(mw.Confirmation(c.Config, c.EmailClient.R))
+		r.Use(confirmationMW)
 		r.Patch("/me", authAPI.MeEndpoint)
 		r.Patch("/profile", usersAPI.UpdateProfileEndpoint)
 		r.Patch("/email/change", usersAPI.ChangeEmailEndpoint)
@@ -105,7 +125,7 @@ func NewRouter(c RouterConfig) chi.Router {
 
 	notificationsAPI := handlers.NewNotificationsAPI(c.Logger, c.Connection)
 	r.Route("/notifications", func(r chi.Router) {
-		r.Use(mw.Confirmation(c.Config, c.EmailClient.R))
+		r.Use(confirmationMW)
 		r.Get("/", notificationsAPI.ListEndpoint)
 		r.Patch("/{id}/read", notificationsAPI.MarkReadEndpoint)
 	})
