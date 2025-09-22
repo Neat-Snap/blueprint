@@ -285,6 +285,8 @@
       "forgotPassword": "Forgot your password?",
       "hidePassword": "Hide password",
       "showPassword": "Show password",
+      "emailVerifiedTitle": "Email verified",
+      "emailVerifiedDescription": "Your email has been verified. Please sign in to continue.",
       "errors": {
         "invalidCredentials": "Invalid email or password",
         "signInFailed": "Sign in failed"

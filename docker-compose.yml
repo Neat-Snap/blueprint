@@ -48,7 +48,7 @@ services:
     environment:
       # Server
       BACKEND_ADDR: ${BACKEND_ADDR?required}
-      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL?required}
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-}
       APP_ENV: ${APP_ENV?required}
       APP_READ_TIMEOUT_S: ${APP_READ_TIMEOUT_S?required}
       APP_WRITE_TIMEOUT_S: ${APP_WRITE_TIMEOUT_S?required}

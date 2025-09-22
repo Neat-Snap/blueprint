@@ -357,9 +357,11 @@ func (c *Client) GetUser(ctx context.Context, userID string) (usermanagement.Use
 
 func (c *Client) AuthorizationURL(params AuthorizationParams) (string, error) {
 	opts := usermanagement.GetAuthorizationURLOpts{
-		ClientID:    c.clientID,
-		RedirectURI: params.RedirectURI,
-		State:       params.State,
+		ClientID: c.clientID,
+		State:    params.State,
+	}
+	if params.RedirectURI != "" {
+		opts.RedirectURI = params.RedirectURI
 	}
 	if params.ConnectionID != "" {
 		opts.ConnectionID = params.ConnectionID

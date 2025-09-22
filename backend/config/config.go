@@ -127,7 +127,7 @@ func Load() Config {
 
 		APP_NAME:           getenvStrict("APP_NAME"),
 		APP_URL:            getenvStrict("APP_URL"),
-		BACKEND_PUBLIC_URL: getenvStrict("BACKEND_PUBLIC_URL"),
+		BACKEND_PUBLIC_URL: getenv("BACKEND_PUBLIC_URL", ""),
 
 		SUPPORT_EMAIL:   fmt.Sprintf("support@%s", getenvStrict("APP_URL")),
 		DEVELOPER_EMAIL: getenv("DEVELOPER_EMAIL", ""),

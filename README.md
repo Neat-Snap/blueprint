@@ -48,7 +48,7 @@ The backend loads configuration from a `.env` file (see `backend/config/config.g
 ```env
 # --- Server ---
 BACKEND_ADDR=:8080
-BACKEND_PUBLIC_URL=http://localhost:8080
+# BACKEND_PUBLIC_URL=http://localhost:8080 # optional override when not using WorkOS-managed redirects
 APP_ENV=dev
 APP_READ_TIMEOUT_S=15
 APP_WRITE_TIMEOUT_S=30

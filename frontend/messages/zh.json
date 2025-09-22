@@ -308,5 +308,11 @@
       "delete": "删除",
       "sending": "发送中..."
     }
+  },
+  "Auth": {
+    "Login": {
+      "emailVerifiedTitle": "邮箱已验证",
+      "emailVerifiedDescription": "您的邮箱已验证，请登录继续。"
+    }
   }
 }

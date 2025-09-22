@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { login, beginGoogleLogin, beginGithubLogin, getMe } from "@/lib/auth";
 import { validateEmail } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
@@ -10,13 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Eye, EyeOff } from "lucide-react";
-import { GalleryVerticalEnd } from "lucide-react";
+import { Eye, EyeOff, GalleryVerticalEnd, CheckCircle2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 export default function LoginPage() {
   const t = useTranslations('Auth.Login');
   const router = useRouter();
+  const params = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,6 +25,14 @@ export default function LoginPage() {
   const [highlightGoogle, setHighlightGoogle] = useState(false);
   const googleBtnRef = useRef<HTMLButtonElement | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const verified = params.get("verified") === "1";
+  const queryEmail = params.get("email") || "";
+
+  useEffect(() => {
+    if (queryEmail) {
+      setEmail(queryEmail);
+    }
+  }, [queryEmail]);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +84,13 @@ export default function LoginPage() {
           StatGrad
         </Link>
         <div className={`flex flex-col gap-6 ${shake ? "animate-shake" : ""}`}>
+          {verified && (
+            <Alert>
+              <CheckCircle2 className="text-green-600 dark:text-green-400" />
+              <AlertTitle>{t('emailVerifiedTitle')}</AlertTitle>
+              <AlertDescription>{t('emailVerifiedDescription')}</AlertDescription>
+            </Alert>
+          )}
           <Card>
             <CardHeader className="text-center">
               <CardTitle className="text-xl">{t('title')}</CardTitle>
