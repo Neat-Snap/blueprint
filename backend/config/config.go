@@ -72,6 +72,12 @@ type Config struct {
 	PASSWORD_REQUIRE_LOWER  bool
 	PASSWORD_REQUIRE_NUMBER bool
 	PASSWORD_REQUIRE_SYMBOL bool
+
+	WORKOS_API_KEY                string
+	WORKOS_CLIENT_ID              string
+	WORKOS_ISSUER                 string
+	WORKOS_SESSION_COOKIE_NAME    string
+	WORKOS_REQUIRE_VERIFIED_EMAIL bool
 }
 
 func getenv(k, def string) string {
@@ -213,5 +219,11 @@ func Load() Config {
 		PASSWORD_REQUIRE_LOWER:  true,
 		PASSWORD_REQUIRE_NUMBER: true,
 		PASSWORD_REQUIRE_SYMBOL: true,
+
+		WORKOS_API_KEY:                getenvStrict("WORKOS_API_KEY"),
+		WORKOS_CLIENT_ID:              getenvStrict("WORKOS_CLIENT_ID"),
+		WORKOS_ISSUER:                 getenv("WORKOS_ISSUER", "https://api.workos.com"),
+		WORKOS_SESSION_COOKIE_NAME:    getenv("WORKOS_SESSION_COOKIE_NAME", "workos_session"),
+		WORKOS_REQUIRE_VERIFIED_EMAIL: getbool("WORKOS_REQUIRE_VERIFIED_EMAIL", true),
 	}
 }

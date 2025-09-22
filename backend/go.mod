@@ -14,6 +14,7 @@ require (
 	github.com/markbates/goth v1.82.0
 	github.com/resend/resend-go/v2 v2.23.0
 	github.com/rs/zerolog v1.34.0
+	github.com/workos/workos-go/v4 v4.46.1
 	golang.org/x/crypto v0.35.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.30.1
@@ -23,6 +24,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/gorilla/context v1.1.1 // indirect
 	github.com/gorilla/mux v1.6.2 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
