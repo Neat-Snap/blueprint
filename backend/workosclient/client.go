@@ -115,6 +115,7 @@ func (c *Client) ParseAndValidateAccessToken(ctx context.Context, token string) 
 	if strings.TrimSpace(token) == "" {
 		return nil, errors.New("token is empty")
 	}
+
 	keyf, err := c.getKeyfunc()
 	if err != nil {
 		return nil, err
@@ -122,8 +123,6 @@ func (c *Client) ParseAndValidateAccessToken(ctx context.Context, token string) 
 
 	claims := jwt.MapClaims{}
 	parser := jwt.NewParser(
-		jwt.WithAudience(c.clientID),
-		jwt.WithIssuer("https://api.workos.com"),
 		jwt.WithValidMethods([]string{jwt.SigningMethodRS256.Alg()}),
 	)
 	parsed, err := parser.ParseWithClaims(token, claims, keyf.KeyfuncCtx(ctx))
@@ -133,7 +132,62 @@ func (c *Client) ParseAndValidateAccessToken(ctx context.Context, token string) 
 	if !parsed.Valid {
 		return nil, errors.New("token is invalid")
 	}
+
+	issRaw, _ := claims["iss"].(string)
+	issuer := strings.TrimSuffix(strings.TrimSpace(issRaw), "/")
+	if issuer == "" {
+		return nil, errors.New("token missing issuer")
+	}
+
+	if !validIssuer(issuer) {
+		return nil, fmt.Errorf("token has invalid issuer")
+	}
+
+	if aud, ok := claims["aud"]; ok {
+		if !includesAudience(aud, c.clientID) {
+			return nil, fmt.Errorf("token has unexpected audience")
+		}
+	}
+
 	return claims, nil
+}
+
+func validIssuer(issuer string) bool {
+	allowed := []string{
+		"https://api.workos.com",
+		"https://auth.workos.com",
+	}
+	normalized := strings.TrimSuffix(strings.TrimSpace(issuer), "/")
+	for _, candidate := range allowed {
+		cand := strings.TrimSuffix(candidate, "/")
+		if strings.EqualFold(cand, normalized) {
+			return true
+		}
+	}
+	return false
+}
+
+func includesAudience(value any, expected string) bool {
+	switch v := value.(type) {
+	case string:
+		return strings.EqualFold(v, expected)
+	case []string:
+		for _, item := range v {
+			if strings.EqualFold(item, expected) {
+				return true
+			}
+		}
+		return false
+	case []any:
+		for _, item := range v {
+			if includesAudience(item, expected) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
 }
 
 func (c *Client) EncodeSession(state SessionState) (string, error) {

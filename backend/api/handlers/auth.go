@@ -487,12 +487,23 @@ func (a *AuthAPI) ResendVerificationEndpoint(w http.ResponseWriter, r *http.Requ
 
 func (a *AuthAPI) providerAuthorizationParams(provider string) (workosclient.AuthorizationParams, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
-	params := workosclient.AuthorizationParams{
-		RedirectURI: strings.TrimRight(a.Config.BACKEND_PUBLIC_URL, "/") + fmt.Sprintf("/auth/%s/callback", provider),
+	baseURL := strings.TrimSpace(a.Config.BACKEND_PUBLIC_URL)
+	if baseURL == "" {
+		return workosclient.AuthorizationParams{}, errors.New("BACKEND_PUBLIC_URL is not configured")
 	}
-	if params.RedirectURI == "" {
-		return workosclient.AuthorizationParams{}, errors.New("callback url is not configured")
+
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		if err != nil {
+			return workosclient.AuthorizationParams{}, fmt.Errorf("invalid BACKEND_PUBLIC_URL: %w", err)
+		}
+		return workosclient.AuthorizationParams{}, errors.New("invalid BACKEND_PUBLIC_URL")
 	}
+
+	callbackPath := fmt.Sprintf("/auth/%s/callback", provider)
+	redirect := parsed.ResolveReference(&url.URL{Path: callbackPath})
+
+	params := workosclient.AuthorizationParams{RedirectURI: redirect.String()}
 
 	if conn := a.providerConnection(provider); conn != "" {
 		params.ConnectionID = conn
