@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"time"
 
 	"strings"
 
@@ -63,7 +64,51 @@ func (h *UsersAPI) UpdateProfileEndpoint(w http.ResponseWriter, r *http.Request)
 
 // POST /account/password/change
 func (h *UsersAPI) ChangePasswordEndpoint(w http.ResponseWriter, r *http.Request) {
-	utils.WriteError(w, h.logger, errors.New("password authentication disabled"), "Password authentication is no longer supported", http.StatusGone)
+	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
+
+	type Rreq struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+
+	var req Rreq
+
+	err := utils.ReadJSON(r.Body, w, h.logger, &req)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	pc, err := h.Connection.Auth.FindPasswordCredential(r.Context(), userObj.ID)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to find password credential", http.StatusInternalServerError)
+		return
+	}
+
+	valid, err := utils.ComparePassword(req.CurrentPassword, pc.PasswordHash)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to compare password", http.StatusInternalServerError)
+		return
+	}
+
+	if !valid {
+		utils.WriteError(w, h.logger, errors.New("invalid password"), "invalid password", http.StatusUnauthorized)
+		return
+	}
+
+	hashedNew, err := utils.HashPassword(req.NewPassword, utils.DefaultArgon)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to hash password", http.StatusInternalServerError)
+		return
+	}
+
+	err = h.Connection.Auth.EnsurePasswordCredential(r.Context(), userObj.ID, hashedNew)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to ensure password credential", http.StatusInternalServerError)
+		return
+	}
+
+	utils.WriteSuccess(w, h.logger, nil, http.StatusOK)
 }
 
 // POST /accounts/email/change
@@ -96,7 +141,13 @@ func (h *UsersAPI) ChangeEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userObj.Email = &newEmail
-	userObj.EmailVerified = false
+	userObj.EmailVerifiedAt = nil
+
+	err = h.Connection.Auth.DeleteAuthIdentity(r.Context(), userObj.ID)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to delete auth identity", http.StatusInternalServerError)
+		return
+	}
 
 	err = h.Connection.Users.Update(r.Context(), userObj)
 	if err != nil {
@@ -150,7 +201,8 @@ func (h *UsersAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) 
 		if err != nil {
 			return err
 		}
-		u.EmailVerified = true
+		now := time.Now()
+		u.EmailVerifiedAt = &now
 		return tx.Users.Update(r.Context(), u)
 	})
 	if err != nil {
@@ -164,7 +216,7 @@ func (h *UsersAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	returnCookieToken(h.Config.APP_URL, w, token, nil, h.Config)
+	returnCookieToken(h.Config.APP_URL, w, token, h.Config)
 
 	returnDefaultPositiveResponse(w, h.logger)
 }

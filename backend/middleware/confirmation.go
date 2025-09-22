@@ -20,7 +20,7 @@ func Confirmation(cfg config.Config, rds *mail.Redis) func(http.Handler) http.Ha
 				return
 			}
 
-			if userObj.EmailVerified {
+			if userObj.EmailVerifiedAt != nil {
 				next.ServeHTTP(w, r)
 				return
 			}

@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"time"
 
 	"gorm.io/gorm"
 )
@@ -48,7 +47,6 @@ type UsersRepo interface {
 	Create(ctx context.Context, u *User) error
 	ByID(ctx context.Context, id uint) (*User, error)
 	ByEmail(ctx context.Context, email string) (*User, error)
-	ByWorkOSUserID(ctx context.Context, workosUserID string) (*User, error)
 	Update(ctx context.Context, u *User) error
 	SoftDelete(ctx context.Context, id uint) error
 }
@@ -67,12 +65,12 @@ type TeamsRepo interface {
 }
 
 type AuthRepo interface {
-	CreateSession(ctx context.Context, session *UserSession) error
-	FindSessionByID(ctx context.Context, sessionID string) (*UserSession, error)
-	TouchSession(ctx context.Context, sessionID string, lastUsedAt time.Time) error
-	UpdateSessionTokens(ctx context.Context, sessionID, refreshHash string, expiresAt time.Time, lastUsedAt time.Time) error
-	DeleteSessionByID(ctx context.Context, sessionID string) error
-	DeleteSessionsForUser(ctx context.Context, userID uint) error
+	FindAuthIdentity(ctx context.Context, provider, subject string) (*AuthIdentity, error)
+	LinkIdentity(ctx context.Context, userID uint, provider, subject string, providerEmail, accessToken, refreshToken *string) error
+	EnsurePasswordCredential(ctx context.Context, userID uint, hashed string) error
+	FindUserByAuthIdentity(ctx context.Context, ai *AuthIdentity) (*User, error)
+	FindPasswordCredential(ctx context.Context, userID uint) (*PasswordCredential, error)
+	DeleteAuthIdentity(ctx context.Context, userID uint) error
 }
 
 type InvitationsRepo interface {
