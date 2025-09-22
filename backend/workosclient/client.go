@@ -20,6 +20,7 @@ import (
 const (
 	AccessCookieName  = "workos_access_token"
 	RefreshCookieName = "workos_refresh_token"
+	oauthStateName    = "workos_oauth_state"
 )
 
 type Client struct {
@@ -38,6 +39,17 @@ type Client struct {
 type SessionState struct {
 	RefreshToken string `json:"refresh_token"`
 	SessionID    string `json:"session_id"`
+}
+
+type OAuthState struct {
+	Redirect string `json:"redirect,omitempty"`
+}
+
+type AuthorizationParams struct {
+	ConnectionID string
+	Provider     string
+	RedirectURI  string
+	State        string
 }
 
 func New(cfg config.Config) (*Client, error) {
@@ -150,6 +162,18 @@ func (c *Client) SessionFromRequest(r *http.Request) (SessionState, error) {
 	return c.DecodeSession(cookie.Value)
 }
 
+func (c *Client) EncodeOAuthState(state OAuthState) (string, error) {
+	return c.cookie.Encode(oauthStateName, state)
+}
+
+func (c *Client) DecodeOAuthState(value string) (OAuthState, error) {
+	var state OAuthState
+	if err := c.cookie.Decode(oauthStateName, value, &state); err != nil {
+		return OAuthState{}, err
+	}
+	return state, nil
+}
+
 func (c *Client) AccessTokenFromRequest(r *http.Request) string {
 	if cookie, err := r.Cookie(AccessCookieName); err == nil && strings.TrimSpace(cookie.Value) != "" {
 		return cookie.Value
@@ -241,6 +265,16 @@ func (c *Client) AuthenticateWithPassword(ctx context.Context, email, password, 
 	return usermanagement.AuthenticateWithPassword(ctx, opts)
 }
 
+func (c *Client) AuthenticateWithCode(ctx context.Context, code, ip, userAgent string) (usermanagement.AuthenticateResponse, error) {
+	opts := usermanagement.AuthenticateWithCodeOpts{
+		ClientID:  c.clientID,
+		Code:      code,
+		IPAddress: ip,
+		UserAgent: userAgent,
+	}
+	return usermanagement.AuthenticateWithCode(ctx, opts)
+}
+
 func (c *Client) AuthenticateWithRefreshToken(ctx context.Context, refreshToken, ip, userAgent string) (usermanagement.RefreshAuthenticationResponse, error) {
 	opts := usermanagement.AuthenticateWithRefreshTokenOpts{
 		ClientID:     c.clientID,
@@ -265,6 +299,25 @@ func (c *Client) VerifyEmail(ctx context.Context, userID, code string) (usermana
 
 func (c *Client) GetUser(ctx context.Context, userID string) (usermanagement.User, error) {
 	return usermanagement.GetUser(ctx, usermanagement.GetUserOpts{User: userID})
+}
+
+func (c *Client) AuthorizationURL(params AuthorizationParams) (string, error) {
+	opts := usermanagement.GetAuthorizationURLOpts{
+		ClientID:    c.clientID,
+		RedirectURI: params.RedirectURI,
+		State:       params.State,
+	}
+	if params.ConnectionID != "" {
+		opts.ConnectionID = params.ConnectionID
+	}
+	if params.Provider != "" {
+		opts.Provider = params.Provider
+	}
+	url, err := usermanagement.GetAuthorizationURL(opts)
+	if err != nil {
+		return "", err
+	}
+	return url.String(), nil
 }
 
 func (c *Client) GetLogoutURL(sessionID, returnTo string) (string, error) {

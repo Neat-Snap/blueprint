@@ -38,9 +38,12 @@ type Config struct {
 	SUPPORT_EMAIL   string
 	DEVELOPER_EMAIL string
 
-	WORKOS_API_KEY       string
-	WORKOS_CLIENT_ID     string
-	WORKOS_COOKIE_SECRET string
+	WORKOS_API_KEY               string
+	WORKOS_CLIENT_ID             string
+	WORKOS_COOKIE_SECRET         string
+	WORKOS_GOOGLE_CONNECTION_ID  string
+	WORKOS_GITHUB_CONNECTION_ID  string
+	WORKOS_DEFAULT_REDIRECT_PATH string
 
 	PASSWORD_MIN_LENGTH     int
 	PASSWORD_MAX_LENGTH     int
@@ -129,9 +132,12 @@ func Load() Config {
 		SUPPORT_EMAIL:   fmt.Sprintf("support@%s", getenvStrict("APP_URL")),
 		DEVELOPER_EMAIL: getenv("DEVELOPER_EMAIL", ""),
 
-		WORKOS_API_KEY:       getenvStrict("WORKOS_API_KEY"),
-		WORKOS_CLIENT_ID:     getenvStrict("WORKOS_CLIENT_ID"),
-		WORKOS_COOKIE_SECRET: getenvStrict("WORKOS_COOKIE_SECRET"),
+		WORKOS_API_KEY:               getenvStrict("WORKOS_API_KEY"),
+		WORKOS_CLIENT_ID:             getenvStrict("WORKOS_CLIENT_ID"),
+		WORKOS_COOKIE_SECRET:         getenvStrict("WORKOS_COOKIE_SECRET"),
+		WORKOS_GOOGLE_CONNECTION_ID:  getenv("WORKOS_GOOGLE_CONNECTION_ID", ""),
+		WORKOS_GITHUB_CONNECTION_ID:  getenv("WORKOS_GITHUB_CONNECTION_ID", ""),
+		WORKOS_DEFAULT_REDIRECT_PATH: getenv("WORKOS_DEFAULT_REDIRECT_PATH", "/auth/ready"),
 
 		PASSWORD_MIN_LENGTH:     8,
 		PASSWORD_MAX_LENGTH:     128,

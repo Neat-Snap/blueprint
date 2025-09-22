@@ -77,6 +77,9 @@ RESEND_API_KEY=your-resend-api-key
 WORKOS_API_KEY=your-workos-api-key
 WORKOS_CLIENT_ID=your-workos-client-id
 WORKOS_COOKIE_SECRET=replace-with-long-random-string
+WORKOS_GOOGLE_CONNECTION_ID=optional-google-connection-id
+WORKOS_GITHUB_CONNECTION_ID=optional-github-connection-id
+WORKOS_DEFAULT_REDIRECT_PATH=/auth/ready
 ```
 
 Frontend uses a proxy rewrite (see `frontend/next.config.ts`):

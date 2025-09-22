@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	mw "github.com/Neat-Snap/blueprint-backend/middleware"
 	"github.com/Neat-Snap/blueprint-backend/utils"
 	"github.com/Neat-Snap/blueprint-backend/workosclient"
+	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/workos/workos-go/v5/pkg/usermanagement"
 )
@@ -49,7 +51,9 @@ type loginRequest struct {
 }
 
 type verifyEmailRequest struct {
-	Code string `json:"code"`
+	Code           string `json:"code"`
+	ConfirmationID string `json:"confirmation_id,omitempty"`
+	UserID         string `json:"user_id,omitempty"`
 }
 
 type passwordResetRequest struct {
@@ -112,7 +116,11 @@ func (a *AuthAPI) RegisterEndpoint(w http.ResponseWriter, r *http.Request) {
 		a.logger.Warn("failed to send verification email", "error", err)
 	}
 
-	utils.WriteSuccess(w, a.logger, utils.DefaultResponse{Success: true, Message: "User registered"}, http.StatusCreated)
+	utils.WriteSuccess(w, a.logger, map[string]any{
+		"success":         true,
+		"message":         "User registered",
+		"confirmation_id": user.ID,
+	}, http.StatusCreated)
 }
 
 func (a *AuthAPI) LoginEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -264,22 +272,32 @@ func (a *AuthAPI) SendVerificationEndpoint(w http.ResponseWriter, r *http.Reques
 }
 
 func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
-	userObj, ok := r.Context().Value(mw.UserObjectContextKey).(*db.User)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	var req verifyEmailRequest
 	if err := utils.ReadJSON(r.Body, w, a.logger, &req); err != nil {
 		return
 	}
-	if strings.TrimSpace(req.Code) == "" {
+
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
 		utils.WriteError(w, a.logger, errors.New("code required"), "code required", http.StatusBadRequest)
 		return
 	}
 
-	res, err := a.WorkOS.VerifyEmail(r.Context(), userObj.WorkOSUserID, req.Code)
+	target := strings.TrimSpace(req.ConfirmationID)
+	if target == "" {
+		target = strings.TrimSpace(req.UserID)
+	}
+	if target == "" {
+		if userObj, ok := r.Context().Value(mw.UserObjectContextKey).(*db.User); ok && userObj != nil {
+			target = userObj.WorkOSUserID
+		}
+	}
+	if target == "" {
+		utils.WriteError(w, a.logger, errors.New("user id required"), "user id required", http.StatusBadRequest)
+		return
+	}
+
+	res, err := a.WorkOS.VerifyEmail(r.Context(), target, code)
 	if err != nil {
 		utils.WriteError(w, a.logger, err, "failed to verify email", http.StatusUnauthorized)
 		return
@@ -294,6 +312,7 @@ func (a *AuthAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	utils.WriteSuccess(w, a.logger, map[string]any{
 		"success": true,
+		"message": "Email verified",
 		"user":    userPayload(updated),
 	}, http.StatusOK)
 }
@@ -343,6 +362,98 @@ func (a *AuthAPI) ResetPasswordConfirmEndpoint(w http.ResponseWriter, r *http.Re
 	utils.WriteSuccess(w, a.logger, utils.DefaultResponse{Success: true, Message: "Password updated"}, http.StatusOK)
 }
 
+func (a *AuthAPI) ProviderBeginAuthEndpoint(w http.ResponseWriter, r *http.Request) {
+	provider := strings.ToLower(strings.TrimSpace(chi.URLParam(r, "provider")))
+	params, err := a.providerAuthorizationParams(provider)
+	if err != nil {
+		http.Error(w, "provider not supported", http.StatusNotFound)
+		return
+	}
+
+	redirectPath := a.sanitizeRedirect(r.URL.Query().Get("redirect"))
+	if redirectPath == "" {
+		redirectPath = a.defaultRedirectPath()
+	}
+
+	stateValue, err := a.WorkOS.EncodeOAuthState(workosclient.OAuthState{Redirect: redirectPath})
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "failed to encode state", http.StatusInternalServerError)
+		return
+	}
+	params.State = stateValue
+
+	authURL, err := a.WorkOS.AuthorizationURL(params)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "failed to build authorization url", http.StatusBadGateway)
+		return
+	}
+
+	http.Redirect(w, r, authURL, http.StatusFound)
+}
+
+func (a *AuthAPI) ProviderCallbackEndpoint(w http.ResponseWriter, r *http.Request) {
+	provider := strings.ToLower(strings.TrimSpace(chi.URLParam(r, "provider")))
+	if _, err := a.providerAuthorizationParams(provider); err != nil {
+		http.Error(w, "provider not supported", http.StatusNotFound)
+		return
+	}
+
+	if errParam := strings.TrimSpace(r.URL.Query().Get("error")); errParam != "" {
+		utils.WriteError(w, a.logger, errors.New(errParam), "authentication failed", http.StatusBadRequest)
+		return
+	}
+
+	code := strings.TrimSpace(r.URL.Query().Get("code"))
+	if code == "" {
+		utils.WriteError(w, a.logger, errors.New("missing code"), "missing code", http.StatusBadRequest)
+		return
+	}
+
+	ip, ua := requestMetadata(r)
+	authRes, err := a.WorkOS.AuthenticateWithCode(r.Context(), code, ip, ua)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "authentication failed", http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := a.WorkOS.ParseAndValidateAccessToken(r.Context(), authRes.AccessToken)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "failed to validate access token", http.StatusUnauthorized)
+		return
+	}
+
+	expiry, err := extractExpiry(claims)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "failed to read token expiry", http.StatusUnauthorized)
+		return
+	}
+	sessionID, err := claimString(claims, "sid")
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "failed to read session id", http.StatusUnauthorized)
+		return
+	}
+
+	dbUser, err := a.WorkOS.EnsureLocalUser(r.Context(), a.Connection, authRes.User)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "failed to sync user", http.StatusInternalServerError)
+		return
+	}
+	a.ensureDefaultTeam(r.Context(), dbUser)
+
+	stateRedirect := a.decodeRedirect(r.URL.Query().Get("state"))
+	if stateRedirect == "" {
+		stateRedirect = a.defaultRedirectPath()
+	}
+
+	sessionState := workosclient.SessionState{RefreshToken: authRes.RefreshToken, SessionID: sessionID}
+	if err := a.WorkOS.SetSessionCookies(w, authRes.AccessToken, expiry, sessionState); err != nil {
+		utils.WriteError(w, a.logger, err, "failed to set cookies", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, a.resolveRedirect(stateRedirect), http.StatusFound)
+}
+
 func (a *AuthAPI) ResendVerificationEndpoint(w http.ResponseWriter, r *http.Request) {
 	var req resendVerificationRequest
 	if err := utils.ReadJSON(r.Body, w, a.logger, &req); err != nil {
@@ -360,12 +471,129 @@ func (a *AuthAPI) ResendVerificationEndpoint(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if _, err := a.WorkOS.SendVerificationEmail(r.Context(), users.Data[0].ID); err != nil {
+	userID := users.Data[0].ID
+
+	if _, err := a.WorkOS.SendVerificationEmail(r.Context(), userID); err != nil {
 		utils.WriteError(w, a.logger, err, "failed to send verification email", http.StatusInternalServerError)
 		return
 	}
 
-	utils.WriteSuccess(w, a.logger, utils.DefaultResponse{Success: true, Message: "Verification email sent"}, http.StatusOK)
+	utils.WriteSuccess(w, a.logger, map[string]any{
+		"success":         true,
+		"message":         "Verification email sent",
+		"confirmation_id": userID,
+	}, http.StatusOK)
+}
+
+func (a *AuthAPI) providerAuthorizationParams(provider string) (workosclient.AuthorizationParams, error) {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	params := workosclient.AuthorizationParams{
+		RedirectURI: strings.TrimRight(a.Config.BACKEND_PUBLIC_URL, "/") + fmt.Sprintf("/auth/%s/callback", provider),
+	}
+	if params.RedirectURI == "" {
+		return workosclient.AuthorizationParams{}, errors.New("callback url is not configured")
+	}
+
+	if conn := a.providerConnection(provider); conn != "" {
+		params.ConnectionID = conn
+	} else if ident := providerIdentifier(provider); ident != "" {
+		params.Provider = ident
+	} else {
+		return workosclient.AuthorizationParams{}, fmt.Errorf("unsupported provider: %s", provider)
+	}
+
+	return params, nil
+}
+
+func (a *AuthAPI) providerConnection(provider string) string {
+	switch provider {
+	case "google":
+		return strings.TrimSpace(a.Config.WORKOS_GOOGLE_CONNECTION_ID)
+	case "github":
+		return strings.TrimSpace(a.Config.WORKOS_GITHUB_CONNECTION_ID)
+	default:
+		return ""
+	}
+}
+
+func providerIdentifier(provider string) string {
+	switch provider {
+	case "google":
+		return "GoogleOAuth"
+	case "github":
+		return "GitHubOAuth"
+	default:
+		return ""
+	}
+}
+
+func (a *AuthAPI) defaultRedirectPath() string {
+	if redirect := a.sanitizeRedirect(a.Config.WORKOS_DEFAULT_REDIRECT_PATH); redirect != "" {
+		return redirect
+	}
+	return "/auth/ready"
+}
+
+func (a *AuthAPI) sanitizeRedirect(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if strings.HasPrefix(raw, "/") {
+		return raw
+	}
+
+	target, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	if target.Host == "" {
+		return ""
+	}
+
+	base, err := url.Parse(a.Config.APP_URL)
+	if err != nil || base.Host == "" {
+		return ""
+	}
+	if !strings.EqualFold(base.Host, target.Host) {
+		return ""
+	}
+
+	uri := target.Path
+	if uri == "" {
+		uri = "/"
+	}
+	if target.RawQuery != "" {
+		uri += "?" + target.RawQuery
+	}
+	if target.Fragment != "" {
+		uri += "#" + target.Fragment
+	}
+	return uri
+}
+
+func (a *AuthAPI) decodeRedirect(state string) string {
+	state = strings.TrimSpace(state)
+	if state == "" {
+		return ""
+	}
+	decoded, err := a.WorkOS.DecodeOAuthState(state)
+	if err != nil {
+		a.logger.Warn("failed to decode oauth state", "error", err)
+		return ""
+	}
+	return a.sanitizeRedirect(decoded.Redirect)
+}
+
+func (a *AuthAPI) resolveRedirect(path string) string {
+	path = a.sanitizeRedirect(path)
+	if path == "" {
+		path = a.defaultRedirectPath()
+	}
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+	return strings.TrimRight(a.Config.APP_URL, "/") + path
 }
 
 func requestMetadata(r *http.Request) (string, string) {

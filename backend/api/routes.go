@@ -57,13 +57,19 @@ func NewRouter(c RouterConfig) chi.Router {
 		r.Post("/login", authAPI.LoginEndpoint)
 		r.Post("/refresh", authAPI.RefreshEndpoint)
 		r.Post("/logout", authAPI.LogoutEndpoint)
+		r.Get("/logout", authAPI.LogoutEndpoint)
 		r.Post("/password/reset", authAPI.ResetPasswordEndpoint)
 		r.Post("/password/confirm", authAPI.ResetPasswordConfirmEndpoint)
+		r.Post("/resend-email", authAPI.ResendVerificationEndpoint)
+		r.Post("/confirm-email", authAPI.ConfirmEmailEndpoint)
 		r.Post("/verify/resend", authAPI.ResendVerificationEndpoint)
 
 		r.With(mw.Confirmation(c.Config)).Get("/me", authAPI.MeEndpoint)
 		r.With(mw.Confirmation(c.Config)).Post("/verify/send", authAPI.SendVerificationEndpoint)
-		r.With(mw.Confirmation(c.Config)).Post("/verify/confirm", authAPI.ConfirmEmailEndpoint)
+		r.Post("/verify/confirm", authAPI.ConfirmEmailEndpoint)
+
+		r.Get("/{provider:google|github}", authAPI.ProviderBeginAuthEndpoint)
+		r.Get("/{provider:google|github}/callback", authAPI.ProviderCallbackEndpoint)
 	})
 
 	dashboardAPI := handlers.NewDashboardAPI(c.Logger, c.Connection)
