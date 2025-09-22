@@ -23,6 +23,8 @@ type RouterConfig struct {
 	EmailClient *email.EmailClient
 	RedisSecret string
 	Config      config.Config
+	Session     config.SessionConfig
+	WorkOS      config.WorkOSConfig
 }
 
 func NewRouter(c RouterConfig) chi.Router {
@@ -42,7 +44,7 @@ func NewRouter(c RouterConfig) chi.Router {
 		httprate.WithKeyFuncs(httprate.KeyByIP, httprate.KeyByEndpoint),
 	))
 
-	r.Use(mw.AuthMiddlewareBuilder(c.Config.JWT_SECRET, c.Config.JWT_ISSUER, c.Config.JWT_AUDIENCE, c.Logger, c.Connection, mw.DefaultSkipper))
+	r.Use(mw.AuthMiddlewareBuilder(c.Session, c.WorkOS, c.Logger, c.Connection, mw.DefaultSkipper))
 
 	api := handlers.NewTestHealthAPI(c.DB, c.Logger)
 	r.Get("/health", api.HealthHandler)
@@ -50,7 +52,7 @@ func NewRouter(c RouterConfig) chi.Router {
 	feedbackAPI := handlers.NewFeedbackAPI(c.Logger, c.Connection, c.EmailClient, c.Config)
 	r.With(mw.Confirmation(c.Config, c.EmailClient.R)).Post("/feedback", feedbackAPI.SubmitEndpoint)
 
-	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Env, c.Config.SESSION_SECRET, c.Config)
+	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Session, c.WorkOS, c.Config)
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/signup", authAPI.RegisterEndpoint)
 		r.Post("/confirm-email", authAPI.ConfirmEmailEndpoint)

@@ -42,6 +42,8 @@ func main() {
 		EmailClient: emailClient,
 		RedisSecret: cfg.REDIS_SECRET,
 		Config:      cfg,
+		Session:     cfg.Session,
+		WorkOS:      cfg.WorkOS,
 	})
 
 	server := api.NewServer(cfg, log, router)
