@@ -9,6 +9,31 @@ import (
 	"github.com/joho/godotenv"
 )
 
+type CookieConfig struct {
+	Name     string
+	Domain   string
+	Path     string
+	Secure   bool
+	HTTPOnly bool
+	SameSite string
+	MaxAge   int
+}
+
+type SessionConfig struct {
+	Secret      string
+	TokenSecret string
+	Store       CookieConfig
+	Token       CookieConfig
+}
+
+type WorkOSConfig struct {
+	APIKey              string
+	ClientID            string
+	DefaultConnection   string
+	DefaultOrganization string
+	CallbackURL         string
+}
+
 type Config struct {
 	Addr          string
 	Env           string
@@ -30,24 +55,16 @@ type Config struct {
 	REDIS_PASS     string
 	REDIS_DB       int
 	REDIS_SECRET   string
-	SESSION_SECRET string
 
 	APP_NAME           string
 	APP_URL            string
 	BACKEND_PUBLIC_URL string
 
-	GOOGLE_CLIENT_ID     string
-	GOOGLE_CLIENT_SECRET string
-
-	GITHUB_CLIENT_ID     string
-	GITHUB_CLIENT_SECRET string
-
 	SUPPORT_EMAIL   string
 	DEVELOPER_EMAIL string
 
-	JWT_SECRET   string
-	JWT_ISSUER   string
-	JWT_AUDIENCE string
+	Session SessionConfig
+	WorkOS  WorkOSConfig
 
 	PASSWORD_MIN_LENGTH     int
 	PASSWORD_MAX_LENGTH     int
@@ -87,6 +104,19 @@ func getint(k string, def int) int {
 	return i
 }
 
+func getbool(k string, def bool) bool {
+	v := getenv(k, "")
+	if v == "" {
+		return def
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		log.Printf("invalid bool for %s: %v, using %t", k, err, def)
+		return def
+	}
+	return b
+}
+
 // func getint64(k string, def int64) int64 {
 // 	v := getenv(k, "")
 // 	if v == "" {
@@ -108,9 +138,35 @@ func Load() Config {
 			log.Fatalf("failed to load env variables: %v", err)
 		}
 	}
+	env := getenv("APP_ENV", "dev")
+	appURL := getenvStrict("APP_URL")
+
+	sessionSecret := getenvStrict("SESSION_SECRET")
+	authTokenSecret := getenvStrict("AUTH_TOKEN_SECRET")
+
+	sessionStoreCookie := CookieConfig{
+		Name:     getenv("SESSION_STORE_COOKIE_NAME", "blueprint_session"),
+		Domain:   getenv("SESSION_STORE_COOKIE_DOMAIN", ""),
+		Path:     getenv("SESSION_STORE_COOKIE_PATH", "/"),
+		Secure:   getbool("SESSION_STORE_COOKIE_SECURE", env == "prod"),
+		HTTPOnly: true,
+		SameSite: getenv("SESSION_STORE_COOKIE_SAME_SITE", "lax"),
+		MaxAge:   getint("SESSION_STORE_COOKIE_MAX_AGE", 3600*8),
+	}
+
+	tokenCookie := CookieConfig{
+		Name:     getenv("AUTH_COOKIE_NAME", "token"),
+		Domain:   getenv("AUTH_COOKIE_DOMAIN", ""),
+		Path:     getenv("AUTH_COOKIE_PATH", "/"),
+		Secure:   getbool("AUTH_COOKIE_SECURE", env == "prod"),
+		HTTPOnly: true,
+		SameSite: getenv("AUTH_COOKIE_SAME_SITE", "strict"),
+		MaxAge:   getint("AUTH_COOKIE_MAX_AGE", 3600*24*21),
+	}
+
 	return Config{
 		Addr:          getenv("BACKEND_ADDR", ":8080"),
-		Env:           getenv("APP_ENV", "dev"),
+		Env:           env,
 		ReadTimeoutS:  getint("APP_READ_TIMEOUT_S", 15),
 		WriteTimeoutS: getint("APP_WRITE_TIMEOUT_S", 30),
 		IdleTimeoutS:  getint("APP_IDLE_TIMEOUT_S", 60),
@@ -123,29 +179,33 @@ func Load() Config {
 
 		RESEND_API_KEY: getenvStrict("RESEND_API_KEY"),
 
-		REDIS_HOST:     getenv("REDIS_HOST", "localhost"),
-		REDIS_PORT:     getenv("REDIS_PORT", "6379"),
-		REDIS_PASS:     getenv("REDIS_PASS", ""),
-		REDIS_DB:       getint("REDIS_DB", 0),
-		REDIS_SECRET:   getenvStrict("REDIS_SECRET"),
-		SESSION_SECRET: getenvStrict("SESSION_SECRET"),
+		REDIS_HOST:   getenv("REDIS_HOST", "localhost"),
+		REDIS_PORT:   getenv("REDIS_PORT", "6379"),
+		REDIS_PASS:   getenv("REDIS_PASS", ""),
+		REDIS_DB:     getint("REDIS_DB", 0),
+		REDIS_SECRET: getenvStrict("REDIS_SECRET"),
 
 		APP_NAME:           getenvStrict("APP_NAME"),
-		APP_URL:            getenvStrict("APP_URL"),
+		APP_URL:            appURL,
 		BACKEND_PUBLIC_URL: getenvStrict("BACKEND_PUBLIC_URL"),
 
-		GOOGLE_CLIENT_ID:     getenvStrict("GOOGLE_CLIENT_ID"),
-		GOOGLE_CLIENT_SECRET: getenvStrict("GOOGLE_CLIENT_SECRET"),
-
-		GITHUB_CLIENT_ID:     getenvStrict("GITHUB_CLIENT_ID"),
-		GITHUB_CLIENT_SECRET: getenvStrict("GITHUB_CLIENT_SECRET"),
-
-		SUPPORT_EMAIL:   fmt.Sprintf("support@%s", getenvStrict("APP_URL")),
+		SUPPORT_EMAIL:   fmt.Sprintf("support@%s", appURL),
 		DEVELOPER_EMAIL: getenv("DEVELOPER_EMAIL", ""),
 
-		JWT_SECRET:   getenvStrict("JWT_SECRET"),
-		JWT_ISSUER:   getenv("JWT_ISSUER", "statgrad"),
-		JWT_AUDIENCE: getenv("JWT_AUDIENCE", "statgrad-web"),
+		Session: SessionConfig{
+			Secret:      sessionSecret,
+			TokenSecret: authTokenSecret,
+			Store:       sessionStoreCookie,
+			Token:       tokenCookie,
+		},
+
+		WorkOS: WorkOSConfig{
+			APIKey:              getenvStrict("WORKOS_API_KEY"),
+			ClientID:            getenvStrict("WORKOS_CLIENT_ID"),
+			DefaultConnection:   getenv("WORKOS_DEFAULT_CONNECTION", ""),
+			DefaultOrganization: getenv("WORKOS_DEFAULT_ORGANIZATION", ""),
+			CallbackURL:         getenvStrict("WORKOS_CALLBACK_URL"),
+		},
 
 		PASSWORD_MIN_LENGTH:     8,
 		PASSWORD_MAX_LENGTH:     128,

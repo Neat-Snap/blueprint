@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Neat-Snap/blueprint-backend/config"
 	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
 	"github.com/Neat-Snap/blueprint-backend/utils"
@@ -45,7 +46,13 @@ func DefaultSkipper(r *http.Request) bool {
 	return false
 }
 
-func AuthMiddlewareBuilder(secret string, issuer string, audience string, logger logger.MultiLogger, conn *db.Connection, skipFunc MiddlewareSkipper) func(http.Handler) http.Handler {
+func AuthMiddlewareBuilder(sessionCfg config.SessionConfig, workosCfg config.WorkOSConfig, logger logger.MultiLogger, conn *db.Connection, skipFunc MiddlewareSkipper) func(http.Handler) http.Handler {
+	if sessionCfg.Token.Name == "" {
+		sessionCfg.Token.Name = "token"
+	}
+	_ = workosCfg
+	tokenSecret := []byte(sessionCfg.TokenSecret)
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			logger.Debug("auth: processing auth header with middleware")
@@ -56,7 +63,7 @@ func AuthMiddlewareBuilder(secret string, issuer string, audience string, logger
 			}
 
 			var token string
-			if c, err := r.Cookie("token"); err == nil && c != nil && c.Value != "" {
+			if c, err := r.Cookie(sessionCfg.Token.Name); err == nil && c != nil && c.Value != "" {
 				token = c.Value
 			} else {
 				authz := r.Header.Get("Authorization")
@@ -70,7 +77,7 @@ func AuthMiddlewareBuilder(secret string, issuer string, audience string, logger
 				return
 			}
 
-			email, err := utils.DecodeJWT([]byte(secret), token, issuer, audience)
+			email, err := utils.DecodeJWT(tokenSecret, token)
 			if err != nil {
 				logger.Debug("auth: error during jwt decoding", "error", err)
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
