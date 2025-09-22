@@ -16,8 +16,7 @@ func (r *usersRepo) Create(ctx context.Context, u *User) error {
 func (r *usersRepo) ByID(ctx context.Context, id uint) (*User, error) {
 	var u User
 	err := r.db.WithContext(ctx).
-		Preload("PasswordCredential").
-		Preload("AuthIdentities").
+		Preload("Sessions").
 		First(&u, id).Error
 	return &u, err
 }
@@ -28,8 +27,21 @@ func (r *usersRepo) ByEmail(ctx context.Context, email string) (*User, error) {
 	}
 	var u User
 	err := r.db.WithContext(ctx).
-		Preload("PasswordCredential").
+		Preload("Sessions").
 		Where("LOWER(email) = ?", strings.ToLower(email)).
+		First(&u).Error
+	return &u, err
+}
+
+func (r *usersRepo) ByWorkOSUserID(ctx context.Context, workosUserID string) (*User, error) {
+	if strings.TrimSpace(workosUserID) == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	var u User
+	err := r.db.WithContext(ctx).
+		Preload("Sessions").
+		Where("workos_user_id = ?", workosUserID).
 		First(&u).Error
 	return &u, err
 }

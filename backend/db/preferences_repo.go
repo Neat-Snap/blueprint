@@ -36,7 +36,6 @@ func (p *preferencesRepo) GetByEmail(ctx context.Context, userEmail string) (*Us
 
 	var u User
 	err := p.db.WithContext(ctx).
-		Preload("PasswordCredential").
 		Where("LOWER(email) = ?", strings.ToLower(userEmail)).
 		First(&u).Error
 
