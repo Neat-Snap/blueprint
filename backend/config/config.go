@@ -30,24 +30,17 @@ type Config struct {
 	REDIS_PASS     string
 	REDIS_DB       int
 	REDIS_SECRET   string
-	SESSION_SECRET string
 
 	APP_NAME           string
 	APP_URL            string
 	BACKEND_PUBLIC_URL string
 
-	GOOGLE_CLIENT_ID     string
-	GOOGLE_CLIENT_SECRET string
-
-	GITHUB_CLIENT_ID     string
-	GITHUB_CLIENT_SECRET string
-
 	SUPPORT_EMAIL   string
 	DEVELOPER_EMAIL string
 
-	JWT_SECRET   string
-	JWT_ISSUER   string
-	JWT_AUDIENCE string
+	WORKOS_API_KEY       string
+	WORKOS_CLIENT_ID     string
+	WORKOS_COOKIE_SECRET string
 
 	PASSWORD_MIN_LENGTH     int
 	PASSWORD_MAX_LENGTH     int
@@ -123,29 +116,22 @@ func Load() Config {
 
 		RESEND_API_KEY: getenvStrict("RESEND_API_KEY"),
 
-		REDIS_HOST:     getenv("REDIS_HOST", "localhost"),
-		REDIS_PORT:     getenv("REDIS_PORT", "6379"),
-		REDIS_PASS:     getenv("REDIS_PASS", ""),
-		REDIS_DB:       getint("REDIS_DB", 0),
-		REDIS_SECRET:   getenvStrict("REDIS_SECRET"),
-		SESSION_SECRET: getenvStrict("SESSION_SECRET"),
+		REDIS_HOST:   getenv("REDIS_HOST", "localhost"),
+		REDIS_PORT:   getenv("REDIS_PORT", "6379"),
+		REDIS_PASS:   getenv("REDIS_PASS", ""),
+		REDIS_DB:     getint("REDIS_DB", 0),
+		REDIS_SECRET: getenvStrict("REDIS_SECRET"),
 
 		APP_NAME:           getenvStrict("APP_NAME"),
 		APP_URL:            getenvStrict("APP_URL"),
 		BACKEND_PUBLIC_URL: getenvStrict("BACKEND_PUBLIC_URL"),
 
-		GOOGLE_CLIENT_ID:     getenvStrict("GOOGLE_CLIENT_ID"),
-		GOOGLE_CLIENT_SECRET: getenvStrict("GOOGLE_CLIENT_SECRET"),
-
-		GITHUB_CLIENT_ID:     getenvStrict("GITHUB_CLIENT_ID"),
-		GITHUB_CLIENT_SECRET: getenvStrict("GITHUB_CLIENT_SECRET"),
-
 		SUPPORT_EMAIL:   fmt.Sprintf("support@%s", getenvStrict("APP_URL")),
 		DEVELOPER_EMAIL: getenv("DEVELOPER_EMAIL", ""),
 
-		JWT_SECRET:   getenvStrict("JWT_SECRET"),
-		JWT_ISSUER:   getenv("JWT_ISSUER", "statgrad"),
-		JWT_AUDIENCE: getenv("JWT_AUDIENCE", "statgrad-web"),
+		WORKOS_API_KEY:       getenvStrict("WORKOS_API_KEY"),
+		WORKOS_CLIENT_ID:     getenvStrict("WORKOS_CLIENT_ID"),
+		WORKOS_COOKIE_SECRET: getenvStrict("WORKOS_COOKIE_SECRET"),
 
 		PASSWORD_MIN_LENGTH:     8,
 		PASSWORD_MAX_LENGTH:     128,

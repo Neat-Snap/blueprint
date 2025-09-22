@@ -72,11 +72,10 @@ services:
       APP_URL: ${APP_URL?required}
 
       # Secrets (explicit to enforce presence)
-      SESSION_SECRET: ${SESSION_SECRET?required}
-      JWT_SECRET: ${JWT_SECRET?required}
       RESEND_API_KEY: ${RESEND_API_KEY?required}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID?required}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET?required}
+      WORKOS_API_KEY: ${WORKOS_API_KEY?required}
+      WORKOS_CLIENT_ID: ${WORKOS_CLIENT_ID?required}
+      WORKOS_COOKIE_SECRET: ${WORKOS_COOKIE_SECRET?required}
 
     ports:
       - "8080:8080"

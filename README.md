@@ -73,11 +73,10 @@ APP_NAME=AppName
 APP_URL=localhost:3000
 
 # --- Secrets ---
-SESSION_SECRET=dev-session-secret-change-me
-JWT_SECRET=dev-jwt-secret-change-me
 RESEND_API_KEY=your-resend-api-key
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
+WORKOS_API_KEY=your-workos-api-key
+WORKOS_CLIENT_ID=your-workos-client-id
+WORKOS_COOKIE_SECRET=replace-with-long-random-string
 ```
 
 Frontend uses a proxy rewrite (see `frontend/next.config.ts`):
@@ -99,18 +98,21 @@ Notes:
 ## API overview
 Key routes (see `backend/api/routes.go`):
 - `GET /health`
-- `POST /feedback` (email confirmation middleware)
+- `POST /feedback` (requires verified account)
 - `POST /auth/signup`
-- `POST /auth/confirm-email`
 - `POST /auth/login`
-- `GET /auth/{provider}` and `/auth/{provider}/callback` (OAuth via Goth)
-- `GET /auth/me` (requires confirmation)
-- `GET /auth/logout`
-- `POST /auth/resend-email`
-- `GET /dashboard/overview` (requires confirmation)
-- Team management under `/teams/*` (requires confirmation)
-- Account management under `/account/*` (requires confirmation)
-- Notifications under `/notifications/*` (requires confirmation)
+- `POST /auth/refresh`
+- `POST /auth/logout`
+- `POST /auth/password/reset`
+- `POST /auth/password/confirm`
+- `POST /auth/verify/resend`
+- `POST /auth/verify/send` (requires auth)
+- `POST /auth/verify/confirm` (requires auth)
+- `GET /auth/me` (requires auth)
+- `GET /dashboard/overview` (requires verified account)
+- Team management under `/teams/*` (requires verified account)
+- Account management under `/account/*` (requires verified account)
+- Notifications under `/notifications/*` (requires verified account)
 
 Global middleware includes CORS, rate limiting, real IP, recoverer, and auth (see `backend/api/routes.go`)
 

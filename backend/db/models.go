@@ -12,14 +12,12 @@ type User struct {
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 
+	WorkOSUserID    string  `gorm:"type:varchar(191);uniqueIndex:uniq_users_workos_id,where:deleted_at IS NULL"`
 	Email           *string `gorm:"uniqueIndex:uniq_users_email,where:deleted_at IS NULL"`
 	EmailVerifiedAt *time.Time
 
 	Name      *string
 	AvatarURL *string
-
-	PasswordCredential *PasswordCredential `gorm:"constraint:OnDelete:CASCADE"`
-	AuthIdentities     []AuthIdentity      `gorm:"constraint:OnDelete:CASCADE"`
 
 	Teams []Team `gorm:"many2many:user_teams;joinForeignKey:UserID;joinReferences:TeamID;constraint:OnDelete:CASCADE;"`
 }
@@ -48,34 +46,6 @@ type Notification struct {
 	Data string `gorm:"type:text;not null"`
 
 	ReadAt *time.Time `gorm:"index"`
-}
-
-type PasswordCredential struct {
-	ID uint `gorm:"primaryKey"`
-
-	UserID uint  `gorm:"uniqueIndex;not null"`
-	User   *User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-
-	PasswordHash      string    `gorm:"type:text;not null" json:"-"`
-	PasswordUpdatedAt time.Time `gorm:"autoUpdateTime"`
-	PasswordDisabled  bool      `gorm:"default:false"`
-}
-
-type AuthIdentity struct {
-	ID        uint `gorm:"primaryKey"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-
-	UserID uint  `gorm:"index;not null"`
-	User   *User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-
-	Provider string `gorm:"type:varchar(32);not null;index:uniq_provider_subject,unique"`
-	Subject  string `gorm:"type:varchar(191);not null;index:uniq_provider_subject,unique"`
-
-	AccessToken  *string
-	RefreshToken *string
-
-	ProviderEmail *string
 }
 
 type Team struct {

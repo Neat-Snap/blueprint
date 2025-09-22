@@ -14,6 +14,7 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
 	"github.com/Neat-Snap/blueprint-backend/utils/email"
+	"github.com/Neat-Snap/blueprint-backend/workosclient"
 )
 
 func main() {
@@ -34,14 +35,20 @@ func main() {
 
 	emailClient := email.NewEmailClient(cfg, *log)
 
+	workosClient, err := workosclient.New(cfg)
+	if err != nil {
+		log.Error("failed to initialise workos client", "error", err)
+		os.Exit(1)
+	}
+
 	router := api.NewRouter(api.RouterConfig{
 		Env:         cfg.Env,
 		DB:          dbConn,
 		Logger:      *log,
 		Connection:  connectionObject,
 		EmailClient: emailClient,
-		RedisSecret: cfg.REDIS_SECRET,
 		Config:      cfg,
+		WorkOS:      workosClient,
 	})
 
 	server := api.NewServer(cfg, log, router)

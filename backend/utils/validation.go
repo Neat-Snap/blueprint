@@ -9,6 +9,10 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/config"
 )
 
+func NormalizeEmail(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
+
 type PasswordPolicy struct {
 	MinLength     int
 	MaxLength     int

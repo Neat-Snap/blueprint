@@ -4,8 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"slices"
-	"time"
-
 	"strings"
 
 	"github.com/Neat-Snap/blueprint-backend/config"
@@ -13,19 +11,19 @@ import (
 	"github.com/Neat-Snap/blueprint-backend/logger"
 	"github.com/Neat-Snap/blueprint-backend/middleware"
 	"github.com/Neat-Snap/blueprint-backend/utils"
-	"github.com/Neat-Snap/blueprint-backend/utils/email"
+	"github.com/Neat-Snap/blueprint-backend/workosclient"
+	"github.com/workos/workos-go/v5/pkg/usermanagement"
 )
 
 type UsersAPI struct {
-	logger      logger.MultiLogger
-	Connection  *db.Connection
-	EmailClient *email.EmailClient
-	RedisSecret string
-	Config      config.Config
+	logger     logger.MultiLogger
+	Connection *db.Connection
+	Config     config.Config
+	WorkOS     *workosclient.Client
 }
 
-func NewUsersAPI(logger logger.MultiLogger, connection *db.Connection, emailClient *email.EmailClient, redisSecret string, config config.Config) *UsersAPI {
-	return &UsersAPI{logger: logger, Connection: connection, EmailClient: emailClient, RedisSecret: redisSecret, Config: config}
+func NewUsersAPI(logger logger.MultiLogger, connection *db.Connection, cfg config.Config, workos *workosclient.Client) *UsersAPI {
+	return &UsersAPI{logger: logger, Connection: connection, Config: cfg, WorkOS: workos}
 }
 
 // PATCH /account/profile
@@ -45,21 +43,43 @@ func (h *UsersAPI) UpdateProfileEndpoint(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userObj.Name = &req.Name
-	userObj.AvatarURL = &req.AvatarURL
-
-	err = h.Connection.Users.Update(r.Context(), userObj)
+	first, last := splitFullName(req.Name)
+	_, err = usermanagement.UpdateUser(r.Context(), usermanagement.UpdateUserOpts{
+		User:      userObj.WorkOSUserID,
+		FirstName: first,
+		LastName:  last,
+	})
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to update user", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to update profile", http.StatusBadGateway)
 		return
 	}
 
-	resp := Rreq{
-		Name:      *userObj.Name,
-		AvatarURL: *userObj.AvatarURL,
+	updated, err := h.WorkOS.EnsureLocalUserByID(r.Context(), h.Connection, userObj.WorkOSUserID)
+	if err != nil {
+		utils.WriteError(w, h.logger, err, "failed to sync user", http.StatusInternalServerError)
+		return
 	}
 
-	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
+	name := strings.TrimSpace(req.Name)
+	if name != "" {
+		updated.Name = &name
+	}
+	avatar := strings.TrimSpace(req.AvatarURL)
+	if avatar != "" {
+		updated.AvatarURL = &avatar
+	} else {
+		updated.AvatarURL = nil
+	}
+
+	if err := h.Connection.Users.Update(r.Context(), updated); err != nil {
+		utils.WriteError(w, h.logger, err, "failed to persist profile", http.StatusInternalServerError)
+		return
+	}
+
+	utils.WriteSuccess(w, h.logger, map[string]any{
+		"name":       name,
+		"avatar_url": avatar,
+	}, http.StatusOK)
 }
 
 // POST /account/password/change
@@ -79,36 +99,28 @@ func (h *UsersAPI) ChangePasswordEndpoint(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	pc, err := h.Connection.Auth.FindPasswordCredential(r.Context(), userObj.ID)
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to find password credential", http.StatusInternalServerError)
+	if userObj.Email == nil || *userObj.Email == "" {
+		utils.WriteError(w, h.logger, errors.New("email required"), "email not set", http.StatusBadRequest)
 		return
 	}
 
-	valid, err := utils.ComparePassword(req.CurrentPassword, pc.PasswordHash)
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to compare password", http.StatusInternalServerError)
+	if err := utils.ValidatePassword(req.NewPassword, utils.PolicyFromConfig(h.Config)); err != nil {
+		utils.WriteError(w, h.logger, err, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if !valid {
-		utils.WriteError(w, h.logger, errors.New("invalid password"), "invalid password", http.StatusUnauthorized)
+	ip, ua := requestMetadata(r)
+	if _, err := h.WorkOS.AuthenticateWithPassword(r.Context(), *userObj.Email, req.CurrentPassword, ip, ua); err != nil {
+		utils.WriteError(w, h.logger, err, "invalid current password", http.StatusUnauthorized)
 		return
 	}
 
-	hashedNew, err := utils.HashPassword(req.NewPassword, utils.DefaultArgon)
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to hash password", http.StatusInternalServerError)
+	if _, err := usermanagement.UpdateUser(r.Context(), usermanagement.UpdateUserOpts{User: userObj.WorkOSUserID, Password: req.NewPassword}); err != nil {
+		utils.WriteError(w, h.logger, err, "failed to update password", http.StatusBadGateway)
 		return
 	}
 
-	err = h.Connection.Auth.EnsurePasswordCredential(r.Context(), userObj.ID, hashedNew)
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to ensure password credential", http.StatusInternalServerError)
-		return
-	}
-
-	utils.WriteSuccess(w, h.logger, nil, http.StatusOK)
+	utils.WriteSuccess(w, h.logger, utils.DefaultResponse{Success: true, Message: "Password updated"}, http.StatusOK)
 }
 
 // POST /accounts/email/change
@@ -127,105 +139,38 @@ func (h *UsersAPI) ChangeEmailEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newEmail := utils.NormalizeEmail(req.Email)
-	if newEmail == "" || !strings.Contains(newEmail, "@") {
-		utils.WriteError(w, h.logger, errors.New("invalid email"), "invalid email", http.StatusBadRequest)
-		return
-	}
-
-	if existing, err := h.Connection.Users.ByEmail(r.Context(), newEmail); err == nil {
-		if existing.ID != userObj.ID {
-			utils.WriteError(w, h.logger, errors.New("email already in use"), "Email already in use", http.StatusConflict)
-			return
-		}
-	}
-
-	userObj.Email = &newEmail
-	userObj.EmailVerifiedAt = nil
-
-	err = h.Connection.Auth.DeleteAuthIdentity(r.Context(), userObj.ID)
+	email, err := utils.ValidateEmail(req.Email)
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to delete auth identity", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "invalid email", http.StatusBadRequest)
 		return
 	}
 
-	err = h.Connection.Users.Update(r.Context(), userObj)
+	if _, err := usermanagement.UpdateUser(r.Context(), usermanagement.UpdateUserOpts{User: userObj.WorkOSUserID, Email: email}); err != nil {
+		utils.WriteError(w, h.logger, err, "failed to update email", http.StatusBadGateway)
+		return
+	}
+
+	updated, err := h.WorkOS.EnsureLocalUserByID(r.Context(), h.Connection, userObj.WorkOSUserID)
 	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to update user", http.StatusInternalServerError)
+		utils.WriteError(w, h.logger, err, "failed to sync user", http.StatusInternalServerError)
 		return
 	}
 
-	id, err := h.EmailClient.SendConfirmationEmail(*userObj.Email, "Updating your email", 60)
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to send confirmation email", http.StatusInternalServerError)
-		return
+	if _, err := h.WorkOS.SendVerificationEmail(r.Context(), userObj.WorkOSUserID); err != nil {
+		h.logger.Warn("failed to send verification email", "error", err)
 	}
 
-	resp := struct {
-		ID string `json:"confirmation_id"`
-	}{
-		ID: id,
-	}
-
-	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
-}
-
-// POST /accounts/email/confirm
-func (h *UsersAPI) ConfirmEmailEndpoint(w http.ResponseWriter, r *http.Request) {
-	var req VerifyUserEmailRequest
-	err := utils.ReadJSON(r.Body, w, h.logger, &req)
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "failed to read request body", http.StatusBadRequest)
-		return
-	}
-
-	verifiedEmail, err := h.EmailClient.R.Verify(r.Context(), []byte(h.RedisSecret), email.VerifyPurpose, req.ConfirmationID, req.Code)
-	if err != nil {
-		switch {
-		case errors.Is(err, email.ErrNotFound), errors.Is(err, email.ErrExpired):
-			utils.WriteError(w, h.logger, err, "Invalid or expired code", http.StatusBadRequest)
-		case errors.Is(err, email.ErrConsumed):
-			utils.WriteError(w, h.logger, err, "Code already used", http.StatusBadRequest)
-		case errors.Is(err, email.ErrMismatch):
-			utils.WriteError(w, h.logger, err, "Invalid code", http.StatusBadRequest)
-		case errors.Is(err, email.ErrTooMany):
-			utils.WriteError(w, h.logger, err, "Too many attempts, try again later", http.StatusTooManyRequests)
-		default:
-			utils.WriteError(w, h.logger, err, "Failed to verify email", http.StatusInternalServerError)
-		}
-		return
-	}
-
-	err = h.Connection.WithTx(r.Context(), func(tx *db.Connection) error {
-		u, err := tx.Users.ByEmail(r.Context(), verifiedEmail)
-		if err != nil {
-			return err
-		}
-		now := time.Now()
-		u.EmailVerifiedAt = &now
-		return tx.Users.Update(r.Context(), u)
-	})
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "Failed to verify email", http.StatusInternalServerError)
-		return
-	}
-
-	token, err := utils.GenerateJWT([]byte(h.Config.JWT_SECRET), verifiedEmail, h.Config.JWT_ISSUER, h.Config.JWT_AUDIENCE)
-	if err != nil {
-		utils.WriteError(w, h.logger, err, "Failed to generate JWT", http.StatusInternalServerError)
-		return
-	}
-
-	returnCookieToken(h.Config.APP_URL, w, token, h.Config)
-
-	returnDefaultPositiveResponse(w, h.logger)
+	utils.WriteSuccess(w, h.logger, map[string]any{
+		"email":          email,
+		"email_verified": updated.EmailVerifiedAt != nil,
+	}, http.StatusOK)
 }
 
 // GET /account/preferences
 func (h *UsersAPI) GetPreferencesEndpoint(w http.ResponseWriter, r *http.Request) {
-	userEmail := r.Context().Value(middleware.UserEmailContextKey).(string)
+	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 
-	preferences, err := h.Connection.Preferences.GetByEmail(r.Context(), userEmail)
+	preferences, err := h.Connection.Preferences.Get(r.Context(), userObj.ID)
 	if err != nil {
 		utils.WriteError(w, h.logger, err, "internal server error", http.StatusInternalServerError)
 		return
@@ -244,7 +189,7 @@ func (h *UsersAPI) GetPreferencesEndpoint(w http.ResponseWriter, r *http.Request
 
 // POST /account/preferences/theme
 func (h *UsersAPI) UpdateUserThemeEndpoint(w http.ResponseWriter, r *http.Request) {
-	userEmail := r.Context().Value(middleware.UserEmailContextKey).(string)
+	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 
 	var req struct {
 		Theme string `json:"theme"`
@@ -263,7 +208,7 @@ func (h *UsersAPI) UpdateUserThemeEndpoint(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	preference, err := h.Connection.Preferences.GetByEmail(r.Context(), userEmail)
+	preference, err := h.Connection.Preferences.Get(r.Context(), userObj.ID)
 	if err != nil {
 		utils.WriteError(w, h.logger, err, "failed to read request body", http.StatusBadRequest)
 		return
@@ -289,7 +234,7 @@ func (h *UsersAPI) UpdateUserThemeEndpoint(w http.ResponseWriter, r *http.Reques
 
 // POST /account/preferences/language
 func (h *UsersAPI) UpdateUserLanguage(w http.ResponseWriter, r *http.Request) {
-	userEmail := r.Context().Value(middleware.UserEmailContextKey).(string)
+	userObj := r.Context().Value(middleware.UserObjectContextKey).(*db.User)
 
 	var req struct {
 		Lang string `json:"lang"`
@@ -307,7 +252,7 @@ func (h *UsersAPI) UpdateUserLanguage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	preference, err := h.Connection.Preferences.GetByEmail(r.Context(), userEmail)
+	preference, err := h.Connection.Preferences.Get(r.Context(), userObj.ID)
 	if err != nil {
 		utils.WriteError(w, h.logger, err, "failed to read request body", http.StatusBadRequest)
 		return
@@ -329,4 +274,16 @@ func (h *UsersAPI) UpdateUserLanguage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteSuccess(w, h.logger, resp, http.StatusOK)
+}
+
+func splitFullName(full string) (string, string) {
+	trimmed := strings.TrimSpace(full)
+	if trimmed == "" {
+		return "", ""
+	}
+	parts := strings.Fields(trimmed)
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
+	return parts[0], strings.Join(parts[1:], " ")
 }
