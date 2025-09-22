@@ -70,7 +70,7 @@ func NewRouter(c RouterConfig) chi.Router {
 	feedbackAPI := handlers.NewFeedbackAPI(c.Logger, c.Connection, c.EmailClient, c.Config)
 	r.With(confirmationMW).Post("/feedback", feedbackAPI.SubmitEndpoint)
 
-	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Env, c.Config.SESSION_SECRET, c.Config)
+	authAPI := handlers.NewAuthAPI(c.DB, c.Logger, c.Connection, c.EmailClient, c.RedisSecret, c.Session, c.WorkOS, c.Config)
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/signup", authAPI.RegisterEndpoint)
 		r.Post("/confirm-email", authAPI.ConfirmEmailEndpoint)

@@ -15,7 +15,7 @@ A full‑stack template with a Go (Chi + Gorm + Postgres + Redis) backend and a 
 > ⚠️ Actively evolving; APIs and UX may change.
 
 ## What's inside
-- Backend: Chi router, middleware (CORS, rate‑limit, auth), Gorm models/migrations, sessions/JWT, OAuth (Goth), email (Resend)
+- Backend: Chi router, middleware (CORS, rate‑limit, auth), Gorm models/migrations, sessions/JWT, WorkOS SSO hooks, email (Resend)
 - Frontend: Next.js App Router, Tailwind, API proxy via rewrites, cookie‑based auth
 - Infra: Postgres, Redis, Docker Compose
 
@@ -39,7 +39,7 @@ BACKEND_URL=http://localhost:8080 npm run dev
 ```
 
 ## Stack
-- Go 1.24, Chi router, Gorm (Postgres), Redis, JWT, Goth (OAuth), Resend (email)
+- Go 1.24, Chi router, Gorm (Postgres), Redis, JWT, WorkOS (SSO), Resend (email)
 - Next.js 15, React 19, Tailwind CSS
 
 ## Environment variables
@@ -74,10 +74,19 @@ APP_URL=localhost:3000
 
 # --- Secrets ---
 SESSION_SECRET=dev-session-secret-change-me
-JWT_SECRET=dev-jwt-secret-change-me
+AUTH_TOKEN_SECRET=dev-auth-token-secret-change-me
 RESEND_API_KEY=your-resend-api-key
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# --- WorkOS ---
+WORKOS_API_KEY=your-workos-api-key
+WORKOS_CLIENT_ID=your-workos-client-id
+WORKOS_DEFAULT_CONNECTION=
+WORKOS_DEFAULT_ORGANIZATION=
+WORKOS_CALLBACK_URL=http://localhost:8080/auth/workos/callback
+
+# Optional cookie overrides
+# SESSION_STORE_COOKIE_NAME=blueprint_session
+# AUTH_COOKIE_NAME=token
 ```
 
 Frontend uses a proxy rewrite (see `frontend/next.config.ts`):
