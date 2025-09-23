@@ -370,6 +370,12 @@ func (a *AuthAPI) ProviderBeginAuthEndpoint(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	redirectURI, err := a.providerRedirectURI(r, provider)
+	if err != nil {
+		utils.WriteError(w, a.logger, err, "failed to resolve redirect uri", http.StatusBadGateway)
+		return
+	}
+
 	redirectPath := a.sanitizeRedirect(r.URL.Query().Get("redirect"))
 	if redirectPath == "" {
 		redirectPath = a.defaultRedirectPath()
@@ -381,6 +387,7 @@ func (a *AuthAPI) ProviderBeginAuthEndpoint(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	params.State = stateValue
+	params.RedirectURI = redirectURI
 
 	authURL, err := a.WorkOS.AuthorizationURL(params)
 	if err != nil {
@@ -501,6 +508,41 @@ func (a *AuthAPI) providerAuthorizationParams(provider string) (workosclient.Aut
 	return params, nil
 }
 
+func (a *AuthAPI) providerRedirectURI(r *http.Request, provider string) (string, error) {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if provider == "" {
+		return "", errors.New("provider is required")
+	}
+
+	base := strings.TrimSpace(a.Config.BACKEND_PUBLIC_URL)
+	if base == "" {
+		base = inferBackendBaseURL(r)
+	}
+	if base == "" {
+		return "", errors.New("BACKEND_PUBLIC_URL is not configured")
+	}
+
+	parsed, err := url.Parse(base)
+	if err != nil {
+		return "", fmt.Errorf("invalid BACKEND_PUBLIC_URL: %w", err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("invalid BACKEND_PUBLIC_URL: %s", base)
+	}
+
+	prefix := strings.TrimSuffix(parsed.Path, "/")
+	callbackPath := fmt.Sprintf("%s/auth/%s/callback", prefix, provider)
+	if !strings.HasPrefix(callbackPath, "/") {
+		callbackPath = "/" + callbackPath
+	}
+
+	parsed.Path = callbackPath
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+
+	return parsed.String(), nil
+}
+
 func (a *AuthAPI) providerConnection(provider string) string {
 	switch provider {
 	case "google":
@@ -528,6 +570,34 @@ func (a *AuthAPI) defaultRedirectPath() string {
 		return redirect
 	}
 	return "/auth/ready"
+}
+
+func inferBackendBaseURL(r *http.Request) string {
+	scheme := "http"
+	if proto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); proto != "" {
+		parts := strings.Split(proto, ",")
+		candidate := strings.TrimSpace(parts[0])
+		if candidate != "" {
+			scheme = candidate
+		}
+	} else if r.TLS != nil {
+		scheme = "https"
+	}
+
+	host := strings.TrimSpace(r.Header.Get("X-Forwarded-Host"))
+	if host != "" {
+		parts := strings.Split(host, ",")
+		if len(parts) > 0 {
+			host = strings.TrimSpace(parts[0])
+		}
+	}
+	if host == "" {
+		host = strings.TrimSpace(r.Host)
+	}
+	if host == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s://%s", scheme, host)
 }
 
 func (a *AuthAPI) sanitizeRedirect(raw string) string {

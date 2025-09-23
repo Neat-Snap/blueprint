@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -153,18 +154,23 @@ func (c *Client) ParseAndValidateAccessToken(ctx context.Context, token string) 
 }
 
 func validIssuer(issuer string) bool {
-	allowed := []string{
-		"https://api.workos.com",
-		"https://auth.workos.com",
+	parsed, err := url.Parse(strings.TrimSpace(issuer))
+	if err != nil {
+		return false
 	}
-	normalized := strings.TrimSuffix(strings.TrimSpace(issuer), "/")
-	for _, candidate := range allowed {
-		cand := strings.TrimSuffix(candidate, "/")
-		if strings.EqualFold(cand, normalized) {
-			return true
-		}
+	if !strings.EqualFold(parsed.Scheme, "https") {
+		return false
 	}
-	return false
+	host := strings.ToLower(strings.TrimSpace(parsed.Host))
+	if host == "" {
+		return false
+	}
+	switch host {
+	case "api.workos.com", "auth.workos.com":
+		return true
+	default:
+		return false
+	}
 }
 
 func includesAudience(value any, expected string) bool {
