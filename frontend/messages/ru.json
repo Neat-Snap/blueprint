@@ -271,6 +271,8 @@
       "forgotPassword": "Забыли пароль?",
       "hidePassword": "Скрыть пароль",
       "showPassword": "Показать пароль",
+      "emailVerifiedTitle": "Email подтвержден",
+      "emailVerifiedDescription": "Ваш адрес подтвержден. Войдите, чтобы продолжить.",
       "errors": {
         "invalidCredentials": "Неверный email или пароль",
         "signInFailed": "Не удалось войти"

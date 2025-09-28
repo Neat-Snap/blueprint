@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { confirmEmail, resendEmail } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import Link from "next/link";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
@@ -43,7 +42,7 @@ export default function VerifyEmailPage() {
           const target = `/auth/verify?email=${encodeURIComponent(email)}&cid=${encodeURIComponent(res.confirmation_id)}`;
           router.replace(target);
         }
-      } catch (e) {
+      } catch {
         // Surface a friendly error; user can try using the explicit resend link
         setError("Could not request a new code. Please try again.");
       } finally {
@@ -73,7 +72,12 @@ export default function VerifyEmailPage() {
     setError(null);
     try {
       await confirmEmail(confirmationId || confirmation_id, code);
-      router.push("/dashboard");
+      const next = new URLSearchParams();
+      if (email) {
+        next.set("email", email);
+      }
+      next.set("verified", "1");
+      router.push(`/auth/login?${next.toString()}`);
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } }; message?: string };
       const msg = e.response?.data?.message || e.message || "Invalid or expired code";

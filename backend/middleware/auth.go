@@ -8,7 +8,7 @@ import (
 
 	"github.com/Neat-Snap/blueprint-backend/db"
 	"github.com/Neat-Snap/blueprint-backend/logger"
-	"github.com/Neat-Snap/blueprint-backend/utils"
+	"github.com/Neat-Snap/blueprint-backend/workosclient"
 	"gorm.io/gorm"
 )
 
@@ -31,21 +31,21 @@ func DefaultSkipper(r *http.Request) bool {
 	case path == "/health",
 		strings.HasPrefix(path, "/auth/login"),
 		strings.HasPrefix(path, "/auth/signup"),
-		strings.HasPrefix(path, "/auth/confirm-email"),
-
+		strings.HasPrefix(path, "/auth/refresh"),
 		strings.HasPrefix(path, "/auth/password/reset"),
 		strings.HasPrefix(path, "/auth/password/confirm"),
-
+		strings.HasPrefix(path, "/auth/verify/resend"),
+		strings.HasPrefix(path, "/auth/confirm-email"),
+		strings.HasPrefix(path, "/auth/resend-email"),
 		strings.HasPrefix(path, "/auth/google"),
 		strings.HasPrefix(path, "/auth/github"),
-		strings.HasPrefix(path, "/auth/resend-email"),
-		strings.HasPrefix(path, "/auth/azuread"):
+		strings.HasPrefix(path, "/auth/logout"):
 		return true
 	}
 	return false
 }
 
-func AuthMiddlewareBuilder(secret string, issuer string, audience string, logger logger.MultiLogger, conn *db.Connection, skipFunc MiddlewareSkipper) func(http.Handler) http.Handler {
+func AuthMiddlewareBuilder(workos *workosclient.Client, logger logger.MultiLogger, conn *db.Connection, skipFunc MiddlewareSkipper) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			logger.Debug("auth: processing auth header with middleware")
@@ -55,38 +55,40 @@ func AuthMiddlewareBuilder(secret string, issuer string, audience string, logger
 				return
 			}
 
-			var token string
-			if c, err := r.Cookie("token"); err == nil && c != nil && c.Value != "" {
-				token = c.Value
-			} else {
-				authz := r.Header.Get("Authorization")
-				parts := strings.SplitN(authz, " ", 2)
-				if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-					token = parts[1]
-				}
-			}
+			token := workos.AccessTokenFromRequest(r)
 			if token == "" {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 
-			email, err := utils.DecodeJWT([]byte(secret), token, issuer, audience)
+			claims, err := workos.ParseAndValidateAccessToken(r.Context(), token)
 			if err != nil {
-				logger.Debug("auth: error during jwt decoding", "error", err)
+				logger.Debug("auth: token validation failed", "error", err)
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 
-			dbUser, err := conn.Users.ByEmail(r.Context(), email)
+			sub, _ := claims["sub"].(string)
+			if strings.TrimSpace(sub) == "" {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			dbUser, err := workos.EnsureLocalUserByID(r.Context(), conn, sub)
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					logger.Debug("auth: record for email was not found in the database during middleware check", "email", email)
+					logger.Debug("auth: user not found while ensuring local record", "workos_id", sub)
 				} else {
 					logger.Debug("auth: error occured in the middleware", "error", err)
 				}
 				logger.Debug("auth: error occured in the middleware")
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
+			}
+
+			email := ""
+			if dbUser.Email != nil {
+				email = *dbUser.Email
 			}
 
 			ctx := context.WithValue(r.Context(), UserEmailContextKey, email)

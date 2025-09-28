@@ -10,7 +10,6 @@ type Connection struct {
 	DBConn        *gorm.DB
 	Users         UsersRepo
 	Teams         TeamsRepo
-	Auth          AuthRepo
 	Invitations   InvitationsRepo
 	Notifications NotificationsRepo
 	Preferences   UserPreferencesRepo
@@ -21,7 +20,6 @@ func NewConnection(db *gorm.DB) *Connection {
 		DBConn:        db,
 		Users:         &usersRepo{db: db},
 		Teams:         &teamsRepo{db: db},
-		Auth:          &authRepo{db: db},
 		Invitations:   &invitationsRepo{db: db},
 		Notifications: &notificationsRepo{db: db},
 		Preferences:   &preferencesRepo{db: db},
@@ -34,7 +32,6 @@ func (c *Connection) WithTx(ctx context.Context, fn func(tx *Connection) error) 
 			DBConn:        tx,
 			Users:         &usersRepo{db: tx},
 			Teams:         &teamsRepo{db: tx},
-			Auth:          &authRepo{db: tx},
 			Invitations:   &invitationsRepo{db: tx},
 			Notifications: &notificationsRepo{db: tx},
 			Preferences:   &preferencesRepo{db: tx},
@@ -47,6 +44,7 @@ type UsersRepo interface {
 	Create(ctx context.Context, u *User) error
 	ByID(ctx context.Context, id uint) (*User, error)
 	ByEmail(ctx context.Context, email string) (*User, error)
+	ByWorkOSID(ctx context.Context, workosID string) (*User, error)
 	Update(ctx context.Context, u *User) error
 	SoftDelete(ctx context.Context, id uint) error
 }
@@ -62,15 +60,6 @@ type TeamsRepo interface {
 	RolesForTeam(ctx context.Context, teamID uint) (map[uint]string, error)
 	Update(ctx context.Context, w *Team) error
 	Delete(ctx context.Context, w *Team) error
-}
-
-type AuthRepo interface {
-	FindAuthIdentity(ctx context.Context, provider, subject string) (*AuthIdentity, error)
-	LinkIdentity(ctx context.Context, userID uint, provider, subject string, providerEmail, accessToken, refreshToken *string) error
-	EnsurePasswordCredential(ctx context.Context, userID uint, hashed string) error
-	FindUserByAuthIdentity(ctx context.Context, ai *AuthIdentity) (*User, error)
-	FindPasswordCredential(ctx context.Context, userID uint) (*PasswordCredential, error)
-	DeleteAuthIdentity(ctx context.Context, userID uint) error
 }
 
 type InvitationsRepo interface {
